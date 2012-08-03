@@ -16,7 +16,7 @@ if __name__ == '__main__':
         author_email = 'open@wlan-si.net',
         url = 'https://github.com/wlanslovenija/django-datastream',
         license = 'AGPLv3',
-        packages = find_packages(),
+        packages = find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests')),
         package_data = {},
         classifiers = [
             'Development Status :: 4 - Beta',
@@ -32,5 +32,7 @@ if __name__ == '__main__':
         install_requires = [
             'Django>=1.2',
             'datastream>=0.1',
+            'django-tastypie>=0.9.11',
         ],
+        test_suite = 'tests.runtests.runtests',
     )
