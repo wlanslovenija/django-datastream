@@ -8,7 +8,7 @@ datastream = None
 
 # Load the backend as specified in configuration
 if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
-    backend = settings['DATASTREAM_BACKEND']
+    backend = settings.DATASTREAM_BACKEND
 
     if isinstance(backend, basestring):
         i = backend.rfind('.')
@@ -17,7 +17,7 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
         try:
             mod = importlib.import_module(module)
         except ImportError, e:
-            raise exceptions.ImproperlyConfigured('Error importing datastream backend %s: "%s"' % (path, e))
+            raise exceptions.ImproperlyConfigured('Error importing datastream backend %s: "%s"' % (module, e))
         try:
             cls = getattr(mod, attr)
         except AttributeError:
