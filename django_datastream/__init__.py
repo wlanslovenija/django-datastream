@@ -23,6 +23,6 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
         except AttributeError:
             raise exceptions.ImproperlyConfigured('Module "%s" does not define a "%s" datastream backend' % (module, attr))
 
-        backend = cls(getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
+        backend = cls(**getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
 
     datastream = Datastream(backend)
