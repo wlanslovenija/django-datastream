@@ -21,7 +21,7 @@ QUERY_GRANULARITY = 'g'
 class MetricResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
-        only_detail_fields = ('datapoints', 'datastream_uri')
+        only_detail_fields = ('datapoints',)
 
     # TODO: Set help text.
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
@@ -99,12 +99,8 @@ class MetricResource(resources.Resource):
         return metric
 
     def dehydrate_datastream_uri(self, bundle):
-        params = self._get_query_params(bundle.request)
-
         kwargs = {
-            'resource_name': self._meta.resource_name,
             'pk': bundle.obj.id,
-            'granularity': params['granularity'].name[0],
         }
 
         if self._meta.api_name is not None:
@@ -113,11 +109,14 @@ class MetricResource(resources.Resource):
         return urlresolvers.reverse('datastream', kwargs=kwargs)
 
     def override_urls(self):
-        granularity = ''.join([granularity.name.lower()[0] for granularity in datastream_api.Granularity.values])
         return [
-            # TODO: Define view
-            urls.url(r"^(?P<resource_name>%s)/(?P<pk>\w[\w/-]*)/datastream/(?P<granularity>[%s])%s$" % (self._meta.resource_name, granularity, utils.trailing_slash()), lambda: None, name="datastream"),
+            urls.url(r"^%s/(?P<pk>\w[\w/-]*)/datastream%s$" % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name="datastream"),
         ]
+
+    def datastream_view(self, request, api_name, pk):
+        granularity = self._get_query_params(request)['granularity']
+
+        # TODO: Return redirect to channel
 
     def obj_create(self, bundle, request=None, **kwargs):
         raise NotImplementedError
