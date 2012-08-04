@@ -1,55 +1,30 @@
 from __future__ import absolute_import
 
-import datetime
+import datetime, time
 
-from tastypie import bundle, fields, resources
+from tastypie import bundle, exceptions, fields, resources
 
-from datastream import GRANULARITIES
+from datastream import api as datastream_api
 
 from . import datastream
 
-class Metric(object):
-    downsamplers = None
-    granularity = None
-    datapoints = None
+class InvalidGranularity(exceptions.BadRequest):
+    pass
 
-    def __init__(self, metric):
-        tags = []
-        for tag in metric:
-            try:
-                self.id = tag['metric_id']
-                continue
-            except (ValueError, KeyError, TypeError):
-                pass
-
-            try:
-                self.available_downsamplers = tag['downsamplers']
-                continue
-            except (ValueError, KeyError, TypeError):
-                pass
-
-            try:
-                self.highest_granularity = tag['highest_granularity']
-                continue
-            except (ValueError, KeyError, TypeError):
-                pass
-
-            tags.append(tag)
-
-        self.tags = tags
+QUERY_START = 's'
+QUERY_END = 'e'
+QUERY_GRANULARITY = 'g'
 
 class MetricResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
-        only_detail_fields = ('downsamplers', 'granularity', 'datapoints')
+        only_detail_fields = ('datapoints',)
 
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
-    available_downsamplers = fields.ListField(attribute='available_downsamplers', null=False, blank=False, readonly=True, help_text=None)
+    downsamplers = fields.ListField(attribute='downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = fields.ListField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
-    downsamplers = fields.ListField('downsamplers', null=True, blank=False, readonly=True, help_text=None)
-    granularity = fields.CharField('granularity', null=True, blank=False, readonly=True, help_text=None)
     datapoints = fields.ListField('datapoints', null=True, blank=False, readonly=True, help_text=None)
 
     def get_resource_uri(self, bundle_or_obj):
@@ -68,10 +43,11 @@ class MetricResource(resources.Resource):
         return self._build_reverse_url('api_dispatch_detail', kwargs=kwargs)
 
     def get_object_list(self, request):
-        return [Metric(metric) for metric in datastream.find_metrics()]
+        # TODO: Provide users a way to query metrics by tags
+        return [datastream_api.Metric(metric) for metric in datastream.find_metrics()]
 
-    def apply_filters(self, request, applicable_filters):
-        pass
+    def apply_sorting(self, obj_list, options=None):
+        return obj_list
 
     def obj_get_list(self, request=None, **kwargs):
         return self.get_object_list(request)
@@ -82,13 +58,36 @@ class MetricResource(resources.Resource):
                 del obj.data[field_name]
         return data
 
-    def obj_get(self, request=None, **kwargs):
-        metric = Metric(datastream.get_tags(kwargs['pk']))
+    def alter_detail_data_to_serialize(self, request, data):
+        data.data['_query_params'] = self._get_query_params(request)
+        return data
 
-        # TODO: Make downsamplers and granularity and start and end configurable
-        metric.downsamplers = metric.available_downsamplers
-        metric.granularity = GRANULARITIES[0]
-        metric.datapoints = datastream.get_data(kwargs['pk'], metric.granularity, datetime.datetime.fromtimestamp(0), datetime.datetime.now())
+    def _get_query_params(self, request):
+        # TODO: Support limiting downsampled value types returned
+
+        granularity = request.GET.get(QUERY_GRANULARITY, datastream_api.Granularity.values[-1].name.lower()[0])
+        for g in datastream_api.Granularity.values:
+            if granularity == g.name.lower()[0]:
+                granularity = g
+                break
+        else:
+            raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
+
+        start = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_START, 0))
+        end = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_END, time.time()))
+
+        return {
+            'granularity': granularity,
+            'start': start,
+            'end': end,
+        }
+
+    def obj_get(self, request=None, **kwargs):
+        metric = datastream_api.Metric(datastream.get_tags(kwargs['pk']))
+
+        params = self._get_query_params(request)
+
+        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'])
 
         return metric
 
