@@ -15,7 +15,7 @@ class Command(base.BaseCommand):
     help = "Regularly inserts dummy datapoints into metrics."
 
     def handle(self, *args, **options):
-        verbose = options.get('verbosity')
+        verbose = int(options.get('verbosity'))
         interval = options.get('interval')
 
         metrics = []
