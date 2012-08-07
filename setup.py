@@ -4,7 +4,7 @@ import os
 
 from setuptools import setup, find_packages
 
-VERSION = '0.1'
+VERSION = '0.1.1'
 
 if __name__ == '__main__':
     setup(
@@ -31,7 +31,7 @@ if __name__ == '__main__':
         zip_safe = False,
         install_requires = [
             'Django>=1.2',
-            'datastream>=0.1',
+            'datastream>=0.1.1',
             'django-tastypie>=0.9.11',
         ],
         test_suite = 'tests.runtests.runtests',

@@ -1,29 +1,31 @@
 from __future__ import absolute_import
 
-import datetime, time
+import datetime
 
 from django.conf import urls
 from django.core import urlresolvers
 
 from tastypie import bundle, exceptions, fields, resources, utils
 
-from datastream import api as datastream_api
-
 from . import datastream
 
 class InvalidGranularity(exceptions.BadRequest):
     pass
 
+class InvalidDownsampler(exceptions.BadRequest):
+    pass
+
+QUERY_GRANULARITY = 'g'
 QUERY_START = 's'
 QUERY_END = 'e'
-QUERY_GRANULARITY = 'g'
+QUERY_DOWNSAMPLERS = 'd'
 
 class MetricResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
 
-    # TODO: Set help text.
+    # TODO: Set help text
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
     downsamplers = fields.ListField(attribute='downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
@@ -50,7 +52,7 @@ class MetricResource(resources.Resource):
 
     def get_object_list(self, request):
         # TODO: Provide users a way to query metrics by tags
-        return [datastream_api.Metric(metric) for metric in datastream.find_metrics()]
+        return [datastream.Metric(metric) for metric in datastream.find_metrics()]
 
     def apply_sorting(self, obj_list, options=None):
         return obj_list
@@ -69,10 +71,8 @@ class MetricResource(resources.Resource):
         return data
 
     def _get_query_params(self, request):
-        # TODO: Support limiting downsampled value types returned
-
-        granularity = request.GET.get(QUERY_GRANULARITY, datastream_api.Granularity.values[-1].name.lower()[0])
-        for g in datastream_api.Granularity.values:
+        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].name.lower()[0])
+        for g in datastream.Granularity.values:
             if granularity == g.name.lower()[0]:
                 granularity = g
                 break
@@ -80,21 +80,38 @@ class MetricResource(resources.Resource):
             raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
         start = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_START, 0))
-        end = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_END, time.time()))
+        if QUERY_END in request.GET:
+            end = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_END))
+        else:
+            end = None
+
+        downsamplers = []
+        for downsampler in request.GET.getlist(QUERY_DOWNSAMPLERS, []):
+            for d in downsampler.split(','):
+                for name, key in datastream.DOWNSAMPLERS.items():
+                    if d == key:
+                        downsamplers.append(name)
+                        break
+                else:
+                    raise InvalidDownsampler("Invalid downsampler: '%s'" % downsampler)
+
+        if downsamplers == []:
+            downsamplers = None
 
         return {
             'granularity': granularity,
             'start': start,
             'end': end,
+            'downsamplers': downsamplers,
         }
 
     def obj_get(self, request=None, **kwargs):
         # TODO: Handle 404
-        metric = datastream_api.Metric(datastream.get_tags(kwargs['pk']))
+        metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
 
         params = self._get_query_params(request)
 
-        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'])
+        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['downsamplers'])
 
         return metric
 
