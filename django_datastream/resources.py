@@ -18,7 +18,8 @@ class InvalidDownsampler(exceptions.BadRequest):
 QUERY_GRANULARITY = 'g'
 QUERY_START = 's'
 QUERY_END = 'e'
-QUERY_DOWNSAMPLERS = 'd'
+QUERY_VALUE_DOWNSAMPLERS = 'v'
+QUERY_TIME_DOWNSAMPLERS = 't'
 
 class MetricResource(resources.Resource):
     class Meta:
@@ -27,7 +28,8 @@ class MetricResource(resources.Resource):
 
     # TODO: Set help text
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
-    downsamplers = fields.ListField(attribute='downsamplers', null=False, blank=False, readonly=True, help_text=None)
+    value_downsamplers = fields.ListField(attribute='value_downsamplers', null=False, blank=False, readonly=True, help_text=None)
+    time_downsamplers = fields.ListField(attribute='time_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = fields.ListField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
@@ -85,24 +87,38 @@ class MetricResource(resources.Resource):
         else:
             end = None
 
-        downsamplers = []
-        for downsampler in request.GET.getlist(QUERY_DOWNSAMPLERS, []):
+        value_downsamplers = []
+        for downsampler in request.GET.getlist(QUERY_VALUE_DOWNSAMPLERS, []):
             for d in downsampler.split(','):
-                for name, key in datastream.DOWNSAMPLERS.items():
+                for name, key in datastream.VALUE_DOWNSAMPLERS.items():
                     if d == key:
-                        downsamplers.append(name)
+                        value_downsamplers.append(name)
                         break
                 else:
-                    raise InvalidDownsampler("Invalid downsampler: '%s'" % downsampler)
+                    raise InvalidDownsampler("Invalid value downsampler: '%s'" % downsampler)
 
-        if downsamplers == []:
-            downsamplers = None
+        if value_downsamplers == []:
+            value_downsamplers = None
+
+        time_downsamplers = []
+        for downsampler in request.GET.getlist(QUERY_TIME_DOWNSAMPLERS, []):
+            for d in downsampler.split(','):
+                for name, key in datastream.TIME_DOWNSAMPLERS.items():
+                    if d == key:
+                        time_downsamplers.append(name)
+                        break
+                else:
+                    raise InvalidDownsampler("Invalid time downsampler: '%s'" % downsampler)
+
+        if time_downsamplers == []:
+            time_downsamplers = None
 
         return {
             'granularity': granularity,
             'start': start,
             'end': end,
-            'downsamplers': downsamplers,
+            'value_downsamplers': value_downsamplers,
+            'time_downsamplers': time_downsamplers,
         }
 
     def obj_get(self, request=None, **kwargs):
@@ -111,7 +127,7 @@ class MetricResource(resources.Resource):
 
         params = self._get_query_params(request)
 
-        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['downsamplers'])
+        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['value_downsamplers'], params['time_downsamplers'])
 
         return metric
 
