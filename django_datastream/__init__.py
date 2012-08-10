@@ -1,8 +1,12 @@
+from __future__ import absolute_import
+
 from django.conf import settings
 from django.core import exceptions
 from django.utils import importlib
 
 from datastream import Datastream
+
+from . import signals
 
 datastream = None
 
@@ -25,4 +29,7 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
 
         backend = cls(**getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
 
-    datastream = Datastream(backend)
+    def callback(metric_id, granularity, datapoint):
+        signals.new_datapoint.send_robust(sender=datastream, metric_id=metric_id, granularity=granularity, datapoint=datapoint)
+
+    datastream = Datastream(backend, callback)
