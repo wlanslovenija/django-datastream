@@ -1,0 +1,43 @@
+Installation
+============
+
+Using pip_ simply by doing::
+
+    pip install django-datastream
+
+.. _pip: http://pypi.python.org/pypi/pip
+
+You should then add ``datastream`` to ``INSTALLED_APPS`` and configure ???
+used for ???. For example::
+
+    ???
+
+.. Settings translate directly to settings of the `py-hbpush`_ package. Production
+   settings should match those configured in Nginx.
+
+.. _py-hbpush: https://github.com/mitar/py-hbpush/tree/mitar
+
+.. You should add passthrough URLs to ``urls.py``, matching URL configured in
+   settings::
+
+..    urlpatterns = patterns('',
+        # ...
+        url(r'^passthrough', include('pushserver.urls')),
+        # ...
+    )
+
+.. Passthrough URLs are not publicly accessible, so you should use
+   ``INTERNAL_IPS`` to configure from which IPs they should be accessible. As you
+   will probably run both Djagno development server and push server daemon on the
+   same machine, this is probably simply::
+
+..    INTERNAL_IPS = (
+        '127.0.0.1',
+    )
+
+.. When used in production where Nginx is making passthrough requests, it should
+   match IP(s) on which you have Nginx running.
+
+.. If you do not need or want passthrough just do not define it in ``PUSH_SERVER``
+   setting. Passthrough URLs and ` INTERNAL_IPS`` setting are also not needed in
+   this case.
