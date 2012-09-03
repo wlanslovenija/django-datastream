@@ -6,7 +6,9 @@ from django.conf import urls
 from django.core import urlresolvers
 
 from tastypie import bundle, exceptions, fields, resources, utils
+from tastypie.serializers import Serializer
 
+from datastream.exceptions import MetricNotFound
 from . import datastream
 
 class InvalidGranularity(exceptions.BadRequest):
@@ -122,8 +124,11 @@ class MetricResource(resources.Resource):
         }
 
     def obj_get(self, request=None, **kwargs):
-        # TODO: Handle 404
-        metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
+
+        try:
+            metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
+        except MetricNotFound:
+            raise exceptions.NotFound("Couldn't find a metric with id='%s'." % kwargs['pk'])
 
         params = self._get_query_params(request)
 
