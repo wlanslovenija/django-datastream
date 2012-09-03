@@ -26,3 +26,22 @@ For example, query to return minutes granularity with only average, min, and max
 
     /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/?g=m&d=m,l&d=u
 
+
+Demo web page
+=============
+
+For a demo web page, start mongo database, go to the tests folder and run::
+
+    python manage.py dummydatastream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
+
+This runs a deamon that creates test metric data. Three data types are supported
+(int, float and enum). Range can be specified within brackets for int and float and
+a list of values for the enum data type.
+
+Open new terminal window, cd to tests folder again and run mongo project::
+
+    python manage.py runserver
+
+Open the demo web page at::
+
+    /test/
