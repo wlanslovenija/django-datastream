@@ -61,8 +61,4 @@ class Command(base.BaseCommand):
                 datastream.insert(metric_id, value)
 
             datastream.downsample_metrics()
-
             time.sleep(interval)
-
-
-
