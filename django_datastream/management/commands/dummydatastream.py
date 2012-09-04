@@ -12,7 +12,7 @@ split_types = re.compile(r'(int|float|enum)(?:\(([^)]+)\))?')
 
 class Command(base.BaseCommand):
     option_list = base.BaseCommand.option_list + (
-        optparse.make_option('--metrics', '-m', action='store', type="int", dest='metrics',
+        optparse.make_option('--metrics', '-n', action='store', type="int", dest='nmetrics',
             help="Number of dummy metrics to be created (default: 3)."),
         optparse.make_option('--interval', '-i', action='store', type="int", dest='interval', default=10,
             help="Interval between inserts of dummy datapoints (default: every 10 seconds)."),
@@ -24,7 +24,7 @@ class Command(base.BaseCommand):
     def handle(self, *args, **options):
         verbose = int(options.get('verbosity'))
         interval = options.get('interval')
-        nmetrics = options.get('metrics')
+        nmetrics = options.get('nmetrics')
         types = options.get('types')
 
         if nmetrics is None and types is None:
