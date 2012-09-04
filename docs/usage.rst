@@ -35,7 +35,7 @@ For a demo web page, start mongo database, go to the tests folder and run::
     python manage.py dummydatastream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
 
 This runs a deamon that creates test metric data. Three data types are supported
-(int, float and enum). Range can be specified within brackets for int and float and
+(int, float and enum). Rfange can be specified within brackets for int and float and
 a list of values for the enum data type.
 
 Open new terminal window, cd to tests folder again and run mongo project::
@@ -45,3 +45,4 @@ Open new terminal window, cd to tests folder again and run mongo project::
 Open the demo web page at::
 
     /test/
+
