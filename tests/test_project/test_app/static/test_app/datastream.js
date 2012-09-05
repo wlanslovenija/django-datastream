@@ -3,7 +3,7 @@
     var datastream = {
         'url': 'http://127.0.0.1:8000/api/v1/metric/',
 
-        'metricList': function(callback) {
+        metricList: function(callback) {
             $.ajax(this.url, {
                 dataType: 'json',
 
@@ -17,7 +17,7 @@
             });
         },
 
-        'metricName': function(metric) {
+        metricName: function(metric) {
             for (var i=0; i < metric.tags.length; i++) {
                 if ($.isPlainObject(metric.tags[i]) && 'name' in metric.tags[i]) {
                     return metric.tags[i].name
@@ -25,36 +25,41 @@
             }
         },
 
-        'plots': {},
+        plots: {},
 
-        'plot': function(selector, metricId) {
+        plot: function(selector, metric_id) {
 
             if ($(selector).children('canvas').length > 0) {
 
                 // if selected existig canvas, add metric
-                var plotId = selector.slice(1);
-                var metrics = this.plots[plotId].addMetric(metricId);
+                var plot_id = selector.slice(1);
+                var metrics = this.plots[plot_id].addMetric(metric_id);
 
             } else {
 
                 // else add new plot
-                var plotId = this.nextId();
-                $(selector).append('<div id=' + plotId +
+                var plot_id = this.nextId();
+                $(selector).append('<div id=' + plot_id +
                     ' style="width:300px;height:200px;margin-right: auto; margin-left: auto;"></div>');
 
-                this.plots[plotId] = $.plot('#' + plotId, [[]], { 'datastream': {'metrics': [metricId]} });
+                this.plots[plot_id] = $.plot('#' + plot_id, [[]], {
+                    datastream: {metrics: [metric_id]},
+                    selection: { mode: "x" },
+                    crosshair: { mode: "x" },
+                    grid: { hoverable: true, autoHighlight: false }
+                });
             }
         },
 
-        '_currentId': 0,
+        _current_id: 0,
 
         nextId: function () {
-            this._currentId += 1;
-            return 'plot_' + this._currentId;
+            this._current_id += 1;
+            return 'plot_' + this._current_id;
         },
 
         currentId: function () {
-            return 'plot_' + this._currentId;
+            return 'plot_' + this._current_id;
         }
 
     };
@@ -65,7 +70,8 @@
 
     function init(plot) {
         var enabled = false,
-            metrics = [];
+            metrics = [],
+            zoom_stack = [];
 
         plot.metrics = function() { return metrics; };
 
@@ -78,16 +84,16 @@
                     data.datapoints[i].v]);
             }
 
-            var newData = [];
+            var new_data = [];
             $.each(plot.getData(), function(key, val) {
                 if (val.data.length !== 0) {
-                    newData.push(val.data);
+                    new_data.push({data: val.data, label: val.label});
                     delete val.data;
                 }
             });
-            newData.push(newpoints);
+            new_data.push({data: newpoints, label: 'xxx = ?'});
 
-            plot.setData(newData);
+            plot.setData(new_data);
             plot.setupGrid();
             plot.draw();
         }
@@ -111,10 +117,6 @@
             $.each(metrics, function(key, val) {
                 plot.addMetric(val);
             });
-
-            //var ps = datapoints.pointsize, i, x, y;
-            //var origpoints = datapoints.points;
-            //var prev_y;
         }
 
         function checkEnabled(plot, s) {
@@ -130,7 +132,90 @@
             }
         }
 
+        function zoom(from, to) {
+            var xaxes_options = plot.getAxes().xaxis.options;
+            zoom_stack.push({min: xaxes_options.min, max: xaxes_options.max});
+            xaxes_options.min = from;
+            xaxes_options.max = to;
+
+            plot.clearSelection();
+            plot.setupGrid();
+            plot.draw();
+        }
+
+        function zoomOut() {
+            var xaxes_options = plot.getAxes().xaxis.options,
+                zoom_level = zoom_stack.pop();
+
+            xaxes_options.min = zoom_level.min;
+            xaxes_options.max = zoom_level.max;
+
+            plot.clearSelection();
+            plot.setupGrid();
+            plot.draw();
+        }
+
+        plot.getPlaceholder().bind("plotselected", function (event, ranges) {
+            zoom(ranges.xaxis.from, ranges.xaxis.to);
+        });
+
+        plot.getPlaceholder().bind("contextmenu", function(e) {
+            return false;
+        });
+
+        plot.getPlaceholder().mousedown(function(event) {
+            switch (event.which) {
+                case 3:
+                    // right mouse button pressed
+                    zoomOut();
+                    return false;
+
+            }
+        });
+
         plot.hooks.processOptions.push(checkEnabled);
+
+        var update_legend_timeout = null;
+        var latest_position = null;
+
+        function updateLegend() {
+            update_legend_timeout = null;
+
+            var pos = latest_position;
+
+            var axes = plot.getAxes();
+            if (pos.x < axes.xaxis.min || pos.x > axes.xaxis.max ||
+                pos.y < axes.yaxis.min || pos.y > axes.yaxis.max)
+                return;
+
+            var i, j, dataset = plot.getData();
+            for (i = 0; i < dataset.length; ++i) {
+                var series = dataset[i];
+
+                // find the nearest points, x-wise
+                for (j = 0; j < series.data.length; ++j)
+                    if (series.data[j][0] > pos.x)
+                        break;
+
+                // now interpolate
+                var y, p1 = series.data[j - 1], p2 = series.data[j];
+                if (p1 == null)
+                    y = p2[1];
+                else if (p2 == null)
+                    y = p1[1];
+                else
+                    y = p1[1] + (p2[1] - p1[1]) * (pos.x - p1[0]) / (p2[0] - p1[0]);
+
+                var legends = plot.getPlaceholder().find('.legendLabel');
+                legends.eq(i).text(series.label.replace(/=.*/, "= " + y.toFixed(2)));
+            }
+        }
+
+        plot.getPlaceholder().bind("plothover",  function (event, pos, item) {
+            latest_position = pos;
+            if (!update_legend_timeout)
+                update_legend_timeout = setTimeout(updateLegend, 50);
+        });
     }
 
     $.plot.plugins.push({
