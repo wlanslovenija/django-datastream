@@ -49,7 +49,7 @@ class Command(base.BaseCommand):
         typedef = {
             'int': (int, random.randint, '0,100'),
             'float': (float, random.uniform, '0,100'),
-            'enum': (str, lambda *x: random.choice(x), 'a,b,c')
+            'enum': (str, lambda *x: random.choice(x), 'a,b,c'),
         }
 
         while True:
