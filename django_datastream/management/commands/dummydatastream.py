@@ -46,9 +46,11 @@ class Command(base.BaseCommand):
             metric_id = datastream.ensure_metric(({'name': 'metric_%d' % i},), ('foobar', {'metric_number': i}, {'description': lorem_ipsum.paragraph()}), downsamplers, datastream.Granularity.Seconds)
             metrics.append((metric_id, types[i] if types is not None else ('int', None)))
 
-        typedef = {'int': (int, random.randint, '0,100'),
-                   'float': (float, random.uniform, '0,100'),
-                   'enum': (str, lambda *x: random.choice(x), 'a,b,c')}
+        typedef = {
+            'int': (int, random.randint, '0,100'),
+            'float': (float, random.uniform, '0,100'),
+            'enum': (str, lambda *x: random.choice(x), 'a,b,c')
+        }
 
         while True:
             for metric_id, type in metrics:
