@@ -40,7 +40,7 @@
                 // else add new plot
                 var plot_id = this.nextId();
                 $(selector).append('<div id=' + plot_id +
-                    ' style="width:300px;height:200px;margin-right: auto; margin-left: auto;"></div>');
+                    ' style="width:350px;height:200px;margin-right: auto; margin-left: auto;"></div>');
 
                 this.plots[plot_id] = $.plot('#' + plot_id, [[]], {
                     datastream: {metrics: [metric_id]},
@@ -75,6 +75,22 @@
 
         plot.metrics = function() { return metrics; };
 
+        function processOptions(plot, s) {
+            if (s.datastream) {
+                enabled = true;
+                metrics = s.datastream.metrics;
+
+                plot.getAxes().xaxis.options.mode = "time";
+                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 70);
+                //plot.getAxes().xaxis.options.timeformat = "%y/%m/%d";
+
+                //plot.hooks.processDatapoints.push(fetchData);
+                fetchData(plot, s);
+            }
+        }
+
+        plot.hooks.processOptions.push(processOptions);
+
         function updateData(plot, data) {
             var newpoints = [],
                 i = 0;
@@ -91,7 +107,7 @@
                     delete val.data;
                 }
             });
-            new_data.push({data: newpoints, label: 'xxx = ?'});
+            new_data.push({data: newpoints, label: datastream.metricName(data) + ' = ?'});
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -119,19 +135,6 @@
             });
         }
 
-        function checkEnabled(plot, s) {
-            if (s.datastream) {
-                enabled = true;
-                metrics = s.datastream.metrics;
-
-                plot.getAxes().xaxis.options.mode = "time";
-                //plot.getAxes().xaxis.options.timeformat = "%y/%m/%d";
-
-                //plot.hooks.processDatapoints.push(fetchData);
-                fetchData(plot, s);
-            }
-        }
-
         function zoom(from, to) {
             var xaxes_options = plot.getAxes().xaxis.options;
             zoom_stack.push({min: xaxes_options.min, max: xaxes_options.max});
@@ -141,16 +144,24 @@
             plot.clearSelection();
             plot.setupGrid();
             plot.draw();
+
+            // Stupid work-around. For crosshair to work we must set selection
+            // plugin to an insane selection. Otherwise the plugin thinks we
+            // are still in selection process. I could hack the plugin, but ...
+            plot.setSelection({ xaxes: { from: 0, to: 0} });
         }
 
         function zoomOut() {
+            if (zoom_stack.length < 1) {
+                return;
+            }
+
             var xaxes_options = plot.getAxes().xaxis.options,
                 zoom_level = zoom_stack.pop();
 
             xaxes_options.min = zoom_level.min;
             xaxes_options.max = zoom_level.max;
 
-            plot.clearSelection();
             plot.setupGrid();
             plot.draw();
         }
@@ -168,15 +179,11 @@
                 case 3:
                     // right mouse button pressed
                     zoomOut();
-                    return false;
-
             }
         });
 
-        plot.hooks.processOptions.push(checkEnabled);
-
-        var update_legend_timeout = null;
-        var latest_position = null;
+        var update_legend_timeout = null,
+            latest_position = null;
 
         function updateLegend() {
             update_legend_timeout = null;
@@ -192,19 +199,24 @@
             for (i = 0; i < dataset.length; ++i) {
                 var series = dataset[i];
 
+                if (series.data.length < 1) {
+                    return;
+                }
+
                 // find the nearest points, x-wise
                 for (j = 0; j < series.data.length; ++j)
                     if (series.data[j][0] > pos.x)
                         break;
 
-                // now interpolate
+                // interpolate
                 var y, p1 = series.data[j - 1], p2 = series.data[j];
-                if (p1 == null)
+                if (p1 == null) {
                     y = p2[1];
-                else if (p2 == null)
+                } else if (p2 == null) {
                     y = p1[1];
-                else
+                } else {
                     y = p1[1] + (p2[1] - p1[1]) * (pos.x - p1[0]) / (p2[0] - p1[0]);
+                }
 
                 var legends = plot.getPlaceholder().find('.legendLabel');
                 legends.eq(i).text(series.label.replace(/=.*/, "= " + y.toFixed(2)));
