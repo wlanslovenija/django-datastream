@@ -17,8 +17,8 @@ class Command(base.BaseCommand):
         optparse.make_option('--interval', '-i', action='store', type="int", dest='interval', default=10,
             help="Interval between inserts of dummy datapoints (default: every 10 seconds)."),
         optparse.make_option('--types', '-t', action='store', type="string", dest='types',
-            help="Metric types, comma-separated values of int, float, or enum (default: empty string). Range can be specified in brackets."),
-        )
+            help="Metric types given as comma-separated values of int, float, or enum (default: empty string). Range can be specified in brackets."),
+    )
     help = "Regularly inserts dummy datapoints into metrics."
 
     def handle(self, *args, **options):

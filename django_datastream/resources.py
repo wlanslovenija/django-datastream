@@ -7,7 +7,7 @@ from django.core import urlresolvers
 
 from tastypie import bundle, exceptions, fields, resources, utils
 
-from datastream import exceptions
+from datastream import exceptions as datastreamexceptions
 from . import datastream
 
 class InvalidGranularity(exceptions.BadRequest):
@@ -126,7 +126,7 @@ class MetricResource(resources.Resource):
 
         try:
             metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
-        except exceptions.MetricNotFound:
+        except datastreamexceptions.MetricNotFound:
             raise exceptions.NotFound("Couldn't find a metric with id='%s'." % kwargs['pk'])
 
         params = self._get_query_params(request)
