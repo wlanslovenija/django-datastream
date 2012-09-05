@@ -1,8 +1,8 @@
 # Django settings for test_project project
 
-import inspect, os.path
+import os.path
 
-settings_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+settings_dir = os.path.abspath(os.path.dirname(__file__))
 default_template_dir = os.path.join(settings_dir, 'templates')
 
 DEBUG = True
