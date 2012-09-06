@@ -7,12 +7,26 @@ body {
   margin: auto;
   margin-top: 40px;
   margin-bottom: 4em;
-  text-align: center;
+  text-align: left;
 /*  width: 960px;*/
 }
 
 #body {
   position: relative;
+}
+
+
+#content {
+    text-align: left;
+    width: 600px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+#plots {
+    text-align: center;
+    margin-right: auto;
+    margin-left: auto;
 }
 
 footer {

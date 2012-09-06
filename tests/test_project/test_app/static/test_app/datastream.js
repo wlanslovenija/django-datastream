@@ -40,7 +40,7 @@
                 // else add new plot
                 var plot_id = this.nextId();
                 $(selector).append('<div id=' + plot_id +
-                    ' style="width:400px;height:200px;margin-right: auto; margin-left: auto;"></div>');
+                    ' style="width:400px;height:200px;"></div>');
 
                 this.plots[plot_id] = $.plot('#' + plot_id, [[]], {
                     datastream: {metrics: [metric_id]},
