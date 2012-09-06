@@ -71,7 +71,8 @@ The plugin allso adds the following methods to the plot object:
         var selection = {
                 first: { x: -1, y: -1}, second: { x: -1, y: -1},
                 show: false,
-                active: false
+                active: false,
+
             };
 
         // FIXME: The drag handling implemented here should be
@@ -92,7 +93,9 @@ The plugin allso adds the following methods to the plot object:
         }
 
         function onMouseDown(e) {
-            if (e.which != 1)  // only accept left-click
+            var o = plot.getOptions();
+
+            if (e.which != o.selection.click)  // only accept left-click
                 return;
             
             // cancel out any text selections
@@ -335,7 +338,8 @@ The plugin allso adds the following methods to the plot object:
         options: {
             selection: {
                 mode: null, // one of null, "x", "y" or "xy"
-                color: "#e8cfac"
+                color: "#e8cfac",
+                click: 1
             }
         },
         name: 'selection',
