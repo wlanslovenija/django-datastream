@@ -12,7 +12,6 @@
     <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}test_app/flot/jquery.flot.navigate.js"></script>
     <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}test_app/flot/jquery.flot.crosshair.js"></script>
     <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}test_app/datastream.js"></script>
-    <script language="javascript" type="text/javascript" src="{{ STATIC_URL }}test_app/views.js"></script>
 </head>
 <body>
 
@@ -28,23 +27,23 @@
 <script language="javascript">
     $(document).ready(function() {
 
-        $('#addmetric').click(function() {
-            datastream.plot('#' + datastream.currentId(), $('#selectmetric').val());
+        $("#addmetric").click(function() {
+            datastream.plot("#" + datastream.currentId(), $("#selectmetric").val());
         });
 
-        $('#addplot').click(function() {
-            datastream.plot('#placeholder', $('#selectmetric').val());
+        $("#addplot").click(function() {
+            datastream.plot("#placeholder", $("#selectmetric").val());
         });
 
         datastream.metricList(function(metrics) {
-            $('select#selectmetric option').remove();
+            $("select#selectmetric option").remove();
 
             $.each(metrics, function(i, metric) {
-                var row = '<option value="' + metric.id + '">' + datastream.metricName(metric) + '</option>';
-                $(row).appendTo('select#selectmetric');
+                var row = "<option value='" + metric.id + "'>" + datastream.metricName(metric) + "</option>";
+                $(row).appendTo("select#selectmetric");
             });
 
-            datastream.plot('#placeholder', $('#selectmetric').val());
+            datastream.plot("#placeholder", $("#selectmetric").val());
         });
     });
 </script>

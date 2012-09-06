@@ -1,25 +1,27 @@
 (function($) {
 
+    var current_plot_id = 0;
+
     var datastream = {
-        'url': 'http://127.0.0.1:8000/api/v1/metric/',
+        "url": "http://127.0.0.1:8000/api/v1/metric/",
 
         metricList: function (callback) {
             $.ajax(this.url, {
-                dataType: 'json',
+                dataType: "json",
 
                 success: function (data, textStatus, jqXHR) {
                     callback(data.objects);
                 },
 
                 error: function(jqXHR, textStatus, errorThrown) {
-                    alert('error');
+                    alert("error");
                 }
             });
         },
 
         metricName: function (metric) {
             for (var i=0; i < metric.tags.length; i++) {
-                if ($.isPlainObject(metric.tags[i]) && 'name' in metric.tags[i]) {
+                if ($.isPlainObject(metric.tags[i]) && "name" in metric.tags[i]) {
                     return metric.tags[i].name
                 }
             }
@@ -27,9 +29,46 @@
 
         plots: {},
 
-        plot: function (selector, metric_id) {
+        plot: function (selector, metric_id, options) {
 
-            if ($(selector).children('canvas').length > 0) {
+            var settings = $.extend({
+                width: "400px",
+                height: "200px",
+                datastream: {
+                    metrics: [metric_id]
+                },
+                selection: {
+                    mode: "x",
+                    click: 3
+                },
+                crosshair: {
+                    mode: "x"
+                },
+                grid: {
+                    hoverable: true,
+                    autoHighlight: false
+                },
+                zoom: {
+                    interactive: false,
+                    trigger: "dblclick",
+                    amount: 1.5
+                },
+                pan: {
+                    interactive: true,
+                    cursor: "move",
+                    frameRate: 20
+                },
+                xaxis: {
+                    zoomRange: null,
+                    panRange: null
+                },
+                yaxis: {
+                    zoomRange: false,
+                    panRange: false
+                }
+            }, options);
+
+            if ($(selector).children("canvas").length > 0) {
 
                 // if selected existig canvas, add metric
                 var plot_id = selector.slice(1);
@@ -39,48 +78,21 @@
 
                 // else add new plot
                 var plot_id = this.nextId();
-                $(selector).append('<div id=' + plot_id +
-                    ' style="width:400px;height:200px;"></div>');
+                $(selector).append("<div " + "id='" + plot_id + "' " +
+                    "style='width:" + settings.width + "; " +
+                    "height:" + settings.height + "'></div>");
 
-                this.plots[plot_id] = $.plot('#' + plot_id, [[]], {
-                    datastream: {metrics: [metric_id]},
-                    selection: {
-                        mode: "x",
-                        click: 3
-                    },
-                    crosshair: { mode: "x" },
-                    grid: { hoverable: true, autoHighlight: false },
-                    zoom: {
-                        interactive: false,
-                        trigger: "dblclick",
-                        amount: 1.5
-                    },
-                    pan: {
-                        interactive: true,
-                        cursor: "move",
-                        frameRate: 20
-                    },
-                    xaxis: {
-                        zoomRange: null,
-                        panRange: null
-                    },
-                    yaxis: {
-                        zoomRange: false,
-                        panRange: false
-                    }
-                });
+                this.plots[plot_id] = $.plot("#" + plot_id, [[]], settings);
             }
         },
 
-        _current_id: 0,
-
         nextId: function () {
-            this._current_id += 1;
-            return 'plot_' + this._current_id;
+            current_plot_id += 1;
+            return "plot_" + current_plot_id;
         },
 
         currentId: function () {
-            return 'plot_' + this._current_id;
+            return "plot_" + current_plot_id;
         }
 
     };
@@ -112,8 +124,6 @@
             }
         }
 
-        plot.hooks.processOptions.push(processOptions);
-
         function updateData(plot, data) {
             var newpoints = [],
                 i = 0;
@@ -130,7 +140,7 @@
                     delete val.data;
                 }
             });
-            new_data.push({data: newpoints, label: datastream.metricName(data) + ' = ?'});
+            new_data.push({data: newpoints, label: datastream.metricName(data) + " = ?"});
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -138,15 +148,15 @@
         }
 
         plot.addMetric = function(metric) {
-            $.ajax(datastream.url + metric + '/?g=s', {
-                dataType: 'json',
+            $.ajax(datastream.url + metric + "/?g=s", {
+                dataType: "json",
 
                 success: function (data, textStatus, jqXHR) {
                     updateData(plot, data);
                 },
 
                 error: function(jqXHR, textStatus, errorThrown) {
-                    alert('error');
+                    alert("error");
                 }
             });
         };
@@ -189,15 +199,15 @@
             plot.draw();
         }
 
-        plot.getPlaceholder().bind("plotselected", function (event, ranges) {
+        function onPlotSelected(event, ranges) {
             zoom(ranges.xaxis.from, ranges.xaxis.to);
-        });
+        }
 
-        plot.getPlaceholder().bind("contextmenu", function(e) {
+        function onContextMenu(e) {
             return false;
-        });
+        }
 
-        plot.getPlaceholder().mouseup(function(event) {
+        function onMouseUp(event) {
             switch (event.which) {
                 case 3:
                     // right mouse button pressed
@@ -205,7 +215,7 @@
                         zoomOut();
                     }
             }
-        });
+        }
 
         var update_legend_timeout = null,
             latest_position = null;
@@ -213,14 +223,16 @@
         function updateLegend() {
             update_legend_timeout = null;
 
-            var pos = latest_position;
+            var i, j,
+                pos = latest_position,
+                legends = plot.getPlaceholder().find(".legendLabel"),
+                axes = plot.getAxes(),
+                dataset = plot.getData();
 
-            var axes = plot.getAxes();
             if (pos.x < axes.xaxis.min || pos.x > axes.xaxis.max ||
                 pos.y < axes.yaxis.min || pos.y > axes.yaxis.max)
                 return;
 
-            var i, j, dataset = plot.getData();
             for (i = 0; i < dataset.length; ++i) {
                 var series = dataset[i];
 
@@ -243,23 +255,40 @@
                     y = p1[1] + (p2[1] - p1[1]) * (pos.x - p1[0]) / (p2[0] - p1[0]);
                 }
 
-                var legends = plot.getPlaceholder().find('.legendLabel');
                 legends.eq(i).text(series.label.replace(/=.*/, "= " + y.toFixed(2)));
             }
         }
 
-        plot.getPlaceholder().bind("plothover",  function (event, pos, item) {
+        function onHover(event, pos, item) {
             latest_position = pos;
             if (!update_legend_timeout)
                 update_legend_timeout = setTimeout(updateLegend, 50);
-        });
+        }
+
+        function bindEvents(plot, eventHolder) {
+            eventHolder.mouseup(onMouseUp);
+            eventHolder.bind("contextmenu", onContextMenu);
+            plot.getPlaceholder().bind("plothover", onHover);
+            plot.getPlaceholder().bind("plotselected", onPlotSelected);
+        }
+
+        function shutdown(plot, eventHolder) {
+            eventHolder.unbind("mouseup", onMouseUp);
+            eventHolder.unbind("contextmenu", onContextMenu);
+            plot.getPlaceholder().unbind("plothover", onHover);
+            plot.getPlaceholder().unbind("plotselected", onPlotSelected);
+        }
+
+        plot.hooks.bindEvents.push(bindEvents);
+        plot.hooks.processOptions.push(processOptions);
+        plot.hooks.shutdown.push(shutdown);
     }
 
     $.plot.plugins.push({
         init: init,
         options: options,
-        name: 'datastream',
-        version: '0.1'
+        name: "datastream",
+        version: "0.1"
     });
 
     window.datastream = datastream;
