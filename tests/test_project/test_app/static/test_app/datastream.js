@@ -3,7 +3,7 @@
     var datastream = {
         'url': 'http://127.0.0.1:8000/api/v1/metric/',
 
-        metricList: function(callback) {
+        metricList: function (callback) {
             $.ajax(this.url, {
                 dataType: 'json',
 
@@ -17,7 +17,7 @@
             });
         },
 
-        metricName: function(metric) {
+        metricName: function (metric) {
             for (var i=0; i < metric.tags.length; i++) {
                 if ($.isPlainObject(metric.tags[i]) && 'name' in metric.tags[i]) {
                     return metric.tags[i].name
@@ -27,7 +27,7 @@
 
         plots: {},
 
-        plot: function(selector, metric_id) {
+        plot: function (selector, metric_id) {
 
             if ($(selector).children('canvas').length > 0) {
 
@@ -40,13 +40,34 @@
                 // else add new plot
                 var plot_id = this.nextId();
                 $(selector).append('<div id=' + plot_id +
-                    ' style="width:350px;height:200px;margin-right: auto; margin-left: auto;"></div>');
+                    ' style="width:400px;height:200px;margin-right: auto; margin-left: auto;"></div>');
 
                 this.plots[plot_id] = $.plot('#' + plot_id, [[]], {
                     datastream: {metrics: [metric_id]},
-                    selection: { mode: "x" },
+                    selection: {
+                        mode: "x",
+                        click: 3
+                    },
                     crosshair: { mode: "x" },
-                    grid: { hoverable: true, autoHighlight: false }
+                    grid: { hoverable: true, autoHighlight: false },
+                    zoom: {
+                        interactive: false,
+                        trigger: "dblclick",
+                        amount: 1.5
+                    },
+                    pan: {
+                        interactive: true,
+                        cursor: "move",
+                        frameRate: 20
+                    },
+                    xaxis: {
+                        zoomRange: null,
+                        panRange: null
+                    },
+                    yaxis: {
+                        zoomRange: false,
+                        panRange: false
+                    }
                 });
             }
         },
@@ -73,7 +94,9 @@
             metrics = [],
             zoom_stack = [];
 
-        plot.metrics = function() { return metrics; };
+        plot.metrics = function() {
+            return metrics;
+        };
 
         function processOptions(plot, s) {
             if (s.datastream) {
@@ -81,7 +104,7 @@
                 metrics = s.datastream.metrics;
 
                 plot.getAxes().xaxis.options.mode = "time";
-                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 70);
+                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
                 //plot.getAxes().xaxis.options.timeformat = "%y/%m/%d";
 
                 //plot.hooks.processDatapoints.push(fetchData);
@@ -174,11 +197,13 @@
             return false;
         });
 
-        plot.getPlaceholder().mousedown(function(event) {
+        plot.getPlaceholder().mouseup(function(event) {
             switch (event.which) {
                 case 3:
                     // right mouse button pressed
-                    zoomOut();
+                    if (plot.getSelection() === null) {
+                        zoomOut();
+                    }
             }
         });
 
