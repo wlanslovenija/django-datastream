@@ -8,5 +8,4 @@ from django.core.exceptions import ValidationError
 
 def timeplot(request):
 
-    return render_to_response('datastream_usecase.html',
-                              context_instance = RequestContext(request))
+    return render_to_response('demo.html', context_instance = RequestContext(request))
