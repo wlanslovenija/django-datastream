@@ -82,9 +82,9 @@ class MetricResource(resources.Resource):
         else:
             raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
-        start = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_START, 0))
+        start = datetime.datetime.utcfromtimestamp(float(request.GET.get(QUERY_START, 0)))
         if QUERY_END in request.GET:
-            end = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_END))
+            end = datetime.datetime.utcfromtimestamp(float(request.GET.get(QUERY_END)))
         else:
             end = None
 
@@ -147,7 +147,7 @@ class MetricResource(resources.Resource):
 
     def override_urls(self):
         return [
-            urls.url(r"^%s/(?P<pk>\w[\w/-]*)/datastream%s$" % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name="datastream"),
+            urls.url(r'^%s/(?P<pk>\w[\w/-]*)/datastream%s$' % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name='datastream'),
         ]
 
     def datastream_view(self, request, api_name, pk):

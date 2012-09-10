@@ -12,11 +12,11 @@ split_types = re.compile(r'(int|float|enum)(?:\(([^)]+)\))?')
 
 class Command(base.BaseCommand):
     option_list = base.BaseCommand.option_list + (
-        optparse.make_option('--metrics', '-n', action='store', type="int", dest='nmetrics',
+        optparse.make_option('--metrics', '-n', action='store', type='int', dest='nmetrics',
             help="Number of dummy metrics to be created (default: 3)."),
-        optparse.make_option('--interval', '-i', action='store', type="int", dest='interval', default=10,
+        optparse.make_option('--interval', '-i', action='store', type='int', dest='interval', default=10,
             help="Interval between inserts of dummy datapoints (default: every 10 seconds)."),
-        optparse.make_option('--types', '-t', action='store', type="string", dest='types',
+        optparse.make_option('--types', '-t', action='store', type='string', dest='types',
             help="Metric types given as comma-separated values of int, float, or enum (default: empty string). Range can be specified in brackets."),
     )
     help = "Regularly inserts dummy datapoints into metrics."
@@ -33,18 +33,18 @@ class Command(base.BaseCommand):
         if types and check_types.match(types):
             types = split_types.findall(types)
             if nmetrics is not None and len(types) != nmetrics:
-                raise base.CommandError('Number of metric types does not mach number of metrics.')
+                raise base.CommandError("Number of metric types does not mach number of metrics.")
 
             nmetrics = len(types)
 
         elif types:
-            raise base.CommandError('Invalid metric types string. Must be a comma separated list of <int|float|enum>[(start,end)|(enum values)].')
+            raise base.CommandError("Invalid metric types string. Must be a comma separated list of <int|float|enum>[(start,end)|(enum values)].")
 
         metrics = []
         for i in range(nmetrics):
-            downsamplers = datastream.backend.value_downsamplers if types is not None and types[i][0] != 'enum' else []
+            downsamplers = datastream.backend.value_downsamplers if types is None or types[i][0] != 'enum' else []
             metric_id = datastream.ensure_metric(({'name': 'metric_%d' % i},), ('foobar', {'metric_number': i}, {'description': lorem_ipsum.paragraph()}), downsamplers, datastream.Granularity.Seconds)
-            metrics.append((metric_id, types[i] if types is not None else ('int', None)))
+            metrics.append((metric_id, types[i] if types is not None else ('int', '')))
 
         typedef = {
             'int': (int, random.randint, '0,100'),
@@ -56,7 +56,7 @@ class Command(base.BaseCommand):
             for metric_id, type in metrics:
                 type, domain = type
                 type, rnd, rng = typedef[type]
-                value = rnd(*map(type, (rng if domain is None else domain).split(',')))
+                value = rnd(*map(type, (rng if domain is '' else domain).split(',')))
 
                 if verbose > 1:
                     self.stdout.write("Inserting value '%s' into metric '%s'.\n" % (value, metric_id))

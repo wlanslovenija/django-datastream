@@ -3,11 +3,11 @@
     var current_plot_id = 0;
 
     var datastream = {
-        "url": "http://127.0.0.1:8000/api/v1/metric/",
+        "url": 'http://127.0.0.1:8000/api/v1/metric/',
 
         metricList: function (callback) {
             $.ajax(this.url, {
-                dataType: "json",
+                dataType: 'json',
 
                 success: function (data, textStatus, jqXHR) {
                     callback(data.objects);
@@ -21,7 +21,7 @@
 
         metricName: function (metric) {
             for (var i=0; i < metric.tags.length; i++) {
-                if ($.isPlainObject(metric.tags[i]) && "name" in metric.tags[i]) {
+                if ($.isPlainObject(metric.tags[i]) && 'name' in metric.tags[i]) {
                     return metric.tags[i].name
                 }
             }
@@ -32,8 +32,11 @@
         plot: function (selector, metric_id, options) {
 
             var settings = $.extend({
-                width: "400px",
-                height: "200px",
+                url: this.url,
+                width: 400,
+                height: 200,
+                from: null,
+                to: null,
                 datastream: {
                     metrics: [metric_id]
                 },
@@ -50,12 +53,12 @@
                 },
                 zoom: {
                     interactive: false,
-                    trigger: "dblclick",
+                    trigger: 'dblclick',
                     amount: 1.5
                 },
                 pan: {
                     interactive: true,
-                    cursor: "move",
+                    cursor: 'move',
                     frameRate: 20
                 },
                 xaxis: {
@@ -68,7 +71,7 @@
                 }
             }, options);
 
-            if ($(selector).children("canvas").length > 0) {
+            if ($(selector).children('canvas').length > 0) {
 
                 // if selected existig canvas, add metric
                 var plot_id = selector.slice(1);
@@ -78,27 +81,30 @@
 
                 // else add new plot
                 var plot_id = this.nextId();
-                $(selector).append("<div " + "id='" + plot_id + "' " +
-                    "style='width:" + settings.width + "; " +
-                    "height:" + settings.height + "'></div>");
+                $(selector).append('<div ' + 'id=\'' + plot_id + '\' ' +
+                    'style=\'width:' + settings.width + 'px; ' +
+                    'height:' + settings.height + 'px\'></div>');
 
-                this.plots[plot_id] = $.plot("#" + plot_id, [[]], settings);
+                this.plots[plot_id] = $.plot('#' + plot_id, [[]], settings);
             }
         },
 
         nextId: function () {
             current_plot_id += 1;
-            return "plot_" + current_plot_id;
+            return 'plot_' + current_plot_id;
         },
 
         currentId: function () {
-            return "plot_" + current_plot_id;
+            return 'plot_' + current_plot_id;
         }
 
     };
 
     var options = {
-        datastream: null
+        url: 'http://127.0.0.1:8000/api/v1/metric/',
+        datastream: null,
+        from: null,
+        to: null
     };
 
     function init(plot) {
@@ -115,22 +121,47 @@
                 enabled = true;
                 metrics = s.datastream.metrics;
 
-                plot.getAxes().xaxis.options.mode = "time";
-                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
-                //plot.getAxes().xaxis.options.timeformat = "%y/%m/%d";
+                if (s.to === null) {
+                    s.to = Math.floor(new Date().getTime() / 1000.0);
+                } else if (jQuery.type(s.to) === 'date') {
+                    s.to = Math.floor(s.to.getTime() / 1000.0)
+                }
 
-                //plot.hooks.processDatapoints.push(fetchData);
+                if (s.from === null) {
+                    s.from = s.to - 60*60*24*7;
+                } else if (jQuery.type(settings.from) === 'date') {
+                    s.from = Math.floor(s.from.getTime() / 1000.0)
+                }
+
+                plot.getAxes().xaxis.options.mode = 'time';
+                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
+
                 fetchData(plot, s);
             }
         }
 
         function updateData(plot, data) {
-            var newpoints = [],
+            var t, v,
+                newpoints = [],
                 i = 0;
 
             for (i; i < data.datapoints.length; i += 1) {
-                newpoints.push([(new Date(data.datapoints[i].t)).getTime(),
-                    data.datapoints[i].v]);
+                t = data.datapoints[i].t;
+                v = data.datapoints[i].v;
+
+                if ($.isPlainObject(t)) {
+                    t = new Date(t['a']).getTime();
+                } else {
+                    t = new Date(t).getTime();
+                }
+
+                if ($.isPlainObject(v)) {
+                    v = v['m'];
+                } else {
+                    v = v;
+                }
+
+                newpoints.push([t, v]);
             }
 
             var new_data = [];
@@ -140,7 +171,7 @@
                     delete val.data;
                 }
             });
-            new_data.push({data: newpoints, label: datastream.metricName(data) + " = ?"});
+            new_data.push({data: newpoints, label: datastream.metricName(data) + ' = ?'});
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -148,8 +179,22 @@
         }
 
         plot.addMetric = function(metric) {
-            $.ajax(datastream.url + metric + "/?g=s", {
-                dataType: "json",
+            var i,
+                o = plot.getOptions(),
+                span = o.to - o.from,
+                gr = ["s", "m", "h", "d"],
+                grf = [1, 60, 3600, 86400];
+
+            for (i = 0; i < gr.length; i++) {
+                if (span / grf[i] < 2 * o.width) {
+                    break;
+                }
+            }
+
+            i = (i > 0) ? i - 1 : i;
+
+            $.ajax(o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m', {
+                dataType: 'json',
 
                 success: function (data, textStatus, jqXHR) {
                     updateData(plot, data);
@@ -225,7 +270,7 @@
 
             var i, j,
                 pos = latest_position,
-                legends = plot.getPlaceholder().find(".legendLabel"),
+                legends = plot.getPlaceholder().find('.legendLabel'),
                 axes = plot.getAxes(),
                 dataset = plot.getData();
 
@@ -255,7 +300,7 @@
                     y = p1[1] + (p2[1] - p1[1]) * (pos.x - p1[0]) / (p2[0] - p1[0]);
                 }
 
-                legends.eq(i).text(series.label.replace(/=.*/, "= " + y.toFixed(2)));
+                legends.eq(i).text(series.label.replace(/=.*/, '= ' + y.toFixed(2)));
             }
         }
 
@@ -267,16 +312,16 @@
 
         function bindEvents(plot, eventHolder) {
             eventHolder.mouseup(onMouseUp);
-            eventHolder.bind("contextmenu", onContextMenu);
-            plot.getPlaceholder().bind("plothover", onHover);
-            plot.getPlaceholder().bind("plotselected", onPlotSelected);
+            eventHolder.bind('contextmenu', onContextMenu);
+            plot.getPlaceholder().bind('plothover', onHover);
+            plot.getPlaceholder().bind('plotselected', onPlotSelected);
         }
 
         function shutdown(plot, eventHolder) {
-            eventHolder.unbind("mouseup", onMouseUp);
-            eventHolder.unbind("contextmenu", onContextMenu);
-            plot.getPlaceholder().unbind("plothover", onHover);
-            plot.getPlaceholder().unbind("plotselected", onPlotSelected);
+            eventHolder.unbind('mouseup', onMouseUp);
+            eventHolder.unbind('contextmenu', onContextMenu);
+            plot.getPlaceholder().unbind('plothover', onHover);
+            plot.getPlaceholder().unbind('plotselected', onPlotSelected);
         }
 
         plot.hooks.bindEvents.push(bindEvents);
@@ -287,7 +332,7 @@
     $.plot.plugins.push({
         init: init,
         options: options,
-        name: "datastream",
+        name: 'datastream',
         version: "0.1"
     });
 
