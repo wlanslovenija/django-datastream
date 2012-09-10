@@ -123,7 +123,6 @@ class MetricResource(resources.Resource):
         }
 
     def obj_get(self, request=None, **kwargs):
-
         try:
             metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
         except datastream_exceptions.MetricNotFound:
