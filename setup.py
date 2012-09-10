@@ -30,11 +30,9 @@ if __name__ == '__main__':
         include_package_data = True,
         zip_safe = False,
         install_requires = [
-            'Django>=1.4.1',
+            'Django>=1.4',
             'datastream>=0.1.1',
             'django-tastypie>=0.9.11',
-            'mongoengine==0.6.18',
-            'pymongo==2.2.1',
             'django-pushserver==0.1.9',
         ],
         test_suite = 'tests.runtests.runtests',
