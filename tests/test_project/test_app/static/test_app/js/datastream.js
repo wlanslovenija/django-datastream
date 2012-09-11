@@ -1,4 +1,4 @@
-(function($) {
+(function($, undefined) {
 
     var current_plot_id = 0;
 
@@ -6,25 +6,15 @@
         "url": 'http://127.0.0.1:8000/api/v1/metric/',
 
         metricList: function (callback) {
-            $.ajax(this.url, {
-                dataType: 'json',
-
-                success: function (data, textStatus, jqXHR) {
+            $.getJSON(this.url, function (data) {
                     callback(data.objects);
-                },
-
-                error: function(jqXHR, textStatus, errorThrown) {
-                    alert("error");
                 }
-            });
+            );
         },
 
         metricName: function (metric) {
-            for (var i=0; i < metric.tags.length; i++) {
-                if ($.isPlainObject(metric.tags[i]) && 'name' in metric.tags[i]) {
-                    return metric.tags[i].name
-                }
-            }
+            var name_tag = $(metric).attr("tags").filter(function (o) { return o.name; });
+            return (name_tag.length > 0) ? name_tag[0].name : undefined;
         },
 
         plots: {},
