@@ -1,52 +1,55 @@
-<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/loose.dtd'>
+<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN' 'http://www.w3.org/TR/html4/strict.dtd'>
+{% load staticfiles %}
 <html>
 <head>
     <meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
     <title>Datastream Test</title>
-    <link rel='stylesheet' type='text/css' href='{{ STATIC_URL }}test_app/style.css' media='screen' />
-
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/jquery.js'></script>
-    {% comment %}<script language='javascript' type='text/javascript' src='{{ STATIC_URL }}pushserver/updates.js'></script>{% endcomment %}
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/flot/jquery.flot.js'></script>
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/flot/jquery.flot.selection.js'></script>
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/flot/jquery.flot.navigate.js'></script>
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/flot/jquery.flot.crosshair.js'></script>
-    <script language='javascript' type='text/javascript' src='{{ STATIC_URL }}test_app/datastream.js'></script>
+    <link rel='stylesheet' type='text/css' href='{% static 'test_app/style.css' %}' media='screen' />
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/jquery/jquery.js' %}'></script>
+    {% comment %}<script language='javascript' type='text/javascript' src='{% static 'pushserver/updates.js' %}'></script>{% endcomment %}
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.js' %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.selection.js' %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.navigate.js' %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.crosshair.js' %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static 'test_app/js/datastream.js' %}'></script>
 </head>
 <body>
+    <div id='content'>
+        <h1>Datastream Test</h1>
+        <p>Left-click and drag to pan. Right-click and drag for zoom. Right-click for zoom-out.</p>
+        <p>TODO: pan on right / left scroll, zoom on up / down scroll.</p>
+        <p>
+            <select id='selectmetric' width='200px'></select>
+            <button id='addmetric'>add metric</button>
+            <button id='addplot'>add plot</button>
+            <span id='step'></span>
+        </p>
+        <p>
+            <div id='placeholder'></div>
+        </p>
+    </div>
+    <script type="text/javascript">
+        $(document).ready(function () {
 
-<div id='content'>
-    <h1>Datastream Test</h1>
-    <p>Left-click and drag to pan. Right-click and drag for zoom. Right-click for zoom-out.</p>
-    <p>TODO: pan on right / left scroll, zoom on up / down scroll.</p>
-    <br/>
-    <select id='selectmetric' width='200px'></select><button id='addmetric'>add metric</button><button id='addplot'>add plot</button><span id='step'></span><br/><br/>
-    <div id='placeholder'></div>
-</div>
-
-<script language='javascript'>
-    $(document).ready(function() {
-
-        $('#addmetric').click(function() {
-            datastream.plot('#' + datastream.currentId(), $('#selectmetric').val());
-        });
-
-        $('#addplot').click(function() {
-            datastream.plot('#placeholder', $('#selectmetric').val());
-        });
-
-        datastream.metricList(function(metrics) {
-            $('select#selectmetric option').remove();
-
-            $.each(metrics, function(i, metric) {
-                var row = '<option value=\'' + metric.id + '\'>' + datastream.metricName(metric) + '</option>';
-                $(row).appendTo('select#selectmetric');
+            $('#addmetric').click(function () {
+                datastream.plot('#' + datastream.currentId(), $('#selectmetric').val());
             });
 
-            datastream.plot('#placeholder', $('#selectmetric').val());
-        });
-    });
-</script>
+            $('#addplot').click(function () {
+                datastream.plot('#placeholder', $('#selectmetric').val());
+            });
 
+            datastream.metricList(function (metrics) {
+                $('select#selectmetric option').remove();
+
+                $.each(metrics, function (i, metric) {
+                    var row = '<option value=\'' + metric.id + '\'>' + datastream.metricName(metric) + '</option>';
+                    $(row).appendTo('#selectmetric');
+                });
+
+                datastream.plot('#placeholder', $('#selectmetric').val());
+            });
+        });
+    </script>
 </body>
 </html>

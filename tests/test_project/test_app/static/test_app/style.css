@@ -3,12 +3,9 @@ html {
 }
 
 body {
-  font-family: "Helvetica Neue", Helvetica, sans-serif;
-  margin: auto;
-  margin-top: 40px;
-  margin-bottom: 4em;
+  font-family: Verdana, Geneva, sans-serif;
+  text-rendering: optimizeLegibility;
   text-align: left;
-/*  width: 960px;*/
 }
 
 #body {
@@ -48,7 +45,7 @@ a:not(:hover) {
 }
 
 pre, code, textarea {
-  font-family: "Menlo", monospace;
+  font-family: "Lucida Console", Monaco, monospace;
 }
 
 code {
@@ -72,9 +69,4 @@ h1 + h2 {
 h2 {
   font-weight: 400;
   font-size: 28px;
-}
-
-h1, h2 {
-  font-family: "Yanone Kaffeesatz";
-  text-rendering: optimizeLegibility;
 }
