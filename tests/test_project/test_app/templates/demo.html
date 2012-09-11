@@ -4,29 +4,34 @@
 <head>
     <meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
     <title>Datastream Test</title>
-    <link rel='stylesheet' type='text/css' href='{% static 'test_app/style.css' %}' media='screen' />
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/jquery/jquery.js' %}'></script>
-    {% comment %}<script language='javascript' type='text/javascript' src='{% static 'pushserver/updates.js' %}'></script>{% endcomment %}
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.js' %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.selection.js' %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.navigate.js' %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/flot/jquery.flot.crosshair.js' %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static 'test_app/js/datastream.js' %}'></script>
+    <link rel='stylesheet' type='text/css' href='{% static "test_app/style.css" %}' media='screen'/>
+    <script language='javascript' type='text/javascript' src='{% static "test_app/jquery/jquery.js" %}'></script>
+    {% comment %}
+    <script language='javascript' type='text/javascript' src='{% static "pushserver/updates.js" %}'></script>
+    {% endcomment %}
+    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.js" %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.selection.js" %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.navigate.js" %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.crosshair.js" %}'></script>
+    <script language='javascript' type='text/javascript' src='{% static "test_app/js/datastream.js" %}'></script>
 </head>
 <body>
     <div id='content'>
         <h1>Datastream Test</h1>
-        <p>Left-click and drag to pan. Right-click and drag for zoom. Right-click for zoom-out.</p>
+
+        <p>Left-click and drag to pan. Right-click and drag for zoom.
+            Right-click
+            for zoom-out.</p>
+
         <p>TODO: pan on right / left scroll, zoom on up / down scroll.</p>
+
         <p>
             <select id='selectmetric' width='200px'></select>
             <button id='addmetric'>add metric</button>
             <button id='addplot'>add plot</button>
             <span id='step'></span>
         </p>
-        <p>
-            <div id='placeholder'></div>
-        </p>
+        <div id='placeholder'></div>
     </div>
     <script type="text/javascript">
         $(document).ready(function () {
