@@ -1,20 +1,27 @@
-html {
-/*  min-width: 1040px;*/
-}
-
 body {
-  font-family: Verdana, Geneva, sans-serif;
-  text-rendering: optimizeLegibility;
-  text-align: left;
+    font: 13px Verdana, Geneva, sans-serif;
+    color: #333333;
+    text-align: left;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing:antialiased;
 }
 
-#body {
-  position: relative;
+p, ol, ul, blockquote, pre, code {
+    line-height: 1.5em;
+    margin-bottom: 1.5em;
 }
 
+h1 {
+    font-size: 2em;
+    line-height: 0.75em;
+}
+
+h2 {
+    font-size: 1.5em;
+    line-height: 1.0em;
+}
 
 #content {
-    text-align: left;
     width: 600px;
     margin-right: auto;
     margin-left: auto;
@@ -27,46 +34,18 @@ body {
 }
 
 footer {
-  font-size: small;
-  margin-top: 8em;
-}
-
-
-#body > p, li > p {
-  line-height: 1.5em;
+    font-size: 0.75em;
+    margin-top: 8em;
 }
 
 a {
-  color: steelblue;
+    color: steelblue;
 }
 
 a:not(:hover) {
-  text-decoration: none;
+    text-decoration: none;
 }
 
 pre, code, textarea {
-  font-family: "Lucida Console", Monaco, monospace;
-}
-
-code {
-  line-height: 1em;
-}
-
-textarea {
-  font-size: 100%;
-}
-
-h1 {
-  font-size: 48px;
-  margin-top: .3em;
-  margin-bottom: 20px;
-}
-
-h1 + h2 {
-  margin-top: 0;
-}
-
-h2 {
-  font-weight: 400;
-  font-size: 28px;
+    font-family: "Lucida Console", Monaco, monospace;
 }
