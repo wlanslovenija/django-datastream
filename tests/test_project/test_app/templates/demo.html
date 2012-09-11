@@ -5,15 +5,15 @@
     <meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
     <title>Datastream Test</title>
     <link rel='stylesheet' type='text/css' href='{% static "test_app/style.css" %}' media='screen'/>
-    <script language='javascript' type='text/javascript' src='{% static "test_app/jquery/jquery.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/jquery/jquery.js" %}'></script>
     {% comment %}
-    <script language='javascript' type='text/javascript' src='{% static "pushserver/updates.js" %}'></script>
+    <script type='text/javascript' src='{% static "pushserver/updates.js" %}'></script>
     {% endcomment %}
-    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.js" %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.selection.js" %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.navigate.js" %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static "test_app/flot/jquery.flot.crosshair.js" %}'></script>
-    <script language='javascript' type='text/javascript' src='{% static "test_app/js/datastream.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.selection.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.navigate.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.crosshair.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/js/datastream.js" %}'></script>
 </head>
 <body>
     <div id='content'>
@@ -48,8 +48,9 @@
                 $('select#selectmetric option').remove();
 
                 $.each(metrics, function (i, metric) {
-                    var row = '<option value=\'' + metric.id + '\'>' + datastream.metricName(metric) + '</option>';
-                    $(row).appendTo('#selectmetric');
+                    $('#selectmetric')
+                            .append($('<option>', { value : metric.id })
+                            .text(datastream.metricName(metric)));
                 });
 
                 datastream.plot('#placeholder', $('#selectmetric').val());
