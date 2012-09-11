@@ -193,17 +193,11 @@
 
             i = (i > 0) ? i - 1 : i;
 
-            $.ajax(o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m', {
-                dataType: 'json',
-
-                success: function (data, textStatus, jqXHR) {
+            $.getJSON(o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m',
+                function (data) {
                     updateData(plot, data);
-                },
-
-                error: function(jqXHR, textStatus, errorThrown) {
-                    alert("error");
                 }
-            });
+            );
         };
 
         function fetchData(plot, s) {
