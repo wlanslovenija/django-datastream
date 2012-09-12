@@ -47,13 +47,13 @@
 
             $('#addmetric').click(function () {
                 $('#' + $.datastream.currentId()).datastream({
-                    metric_id: $('#selectmetric').val()
+                    add_metric: $('#selectmetric').val()
                 });
             });
 
             $('#addplot').click(function () {
                 $('#placeholder').datastream({
-                    metric_id: $('#selectmetric').val()
+                    metrics: [ $('#selectmetric').val() ]
                 });
             });
 
@@ -67,9 +67,7 @@
                 });
 
                 $('#placeholder').datastream({
-                    datastream: {
                         metrics: [ $('#selectmetric').val() ]
-                    }
                 });
             });
         });

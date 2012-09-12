@@ -19,16 +19,26 @@
 
     function Datastream(placeholder, options) {
 
+        if (options && options.metrics) {
+            options = $.extend(options, { datastream: {metrics: options.metrics }});
+            delete options.metrics;
+        }
+
+        var add_metric = undefined;
+        if (options && options.add_metric) {
+            add_metric = options.add_metric;
+            delete options.add_metric;
+        }
+
         this.options = $.extend({}, $.datastream.defaults, options);
         this.placeholder = placeholder;
 
-        if (placeholder.children('canvas').length > 0) {
+        if (placeholder.children('canvas').length > 0 && add_metric) {
 
             // if selected existig canvas, add metric
-            var plot_id = placeholder.slice(1);
-            // find difference of plot metrics and metrics in this.options
-            // add all new metrics to plot and remove other metrics
-            plots[plot_id].addMetric(this.options.metric_id);
+            var plot_id = placeholder.attr('id');
+            this.options.datastream.metrics.push(add_metric);
+            plots[plot_id].addMetric(add_metric);
 
         } else {
 
@@ -203,6 +213,10 @@
             }
 
             i = (i > 0) ? i - 1 : i;
+
+            if (!$.inArray(metric, o.datastream.metrics)) {
+                o.datastream.metrics.push(metric);
+            }
 
             $.getJSON(o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m',
                 function (data) {
