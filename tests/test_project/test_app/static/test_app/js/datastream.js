@@ -1,97 +1,118 @@
 (function($, undefined) {
 
-    var current_plot_id = 0;
+    var plots = {},
+        current_plot_id = 0,
+        datastream_location = '',
+        restful_api_location = 'api/v1/metric/';
 
-    var datastream = {
-        "url": 'http://127.0.0.1:8000/api/v1/metric/',
+    // #8138, IE may throw an exception when accessing
+    // a field from window.location if document.domain has been set
+    try {
+        datastream_location = location.href + restful_api_location;
+    } catch (e) {
+        // Use the href attribute of an A element
+        // since IE will modify it given document.location
+        datastream_location = document.createElement( "a" );
+        datastream_location.href = "";
+        datastream_location = datastream_location.href + restful_api_location;
+    }
 
-        metricList: function (callback) {
-            $.getJSON(this.url, function (data) {
-                    callback(data.objects);
-                }
-            );
-        },
+    function Datastream(placeholder, options) {
 
-        metricName: function (metric) {
-            var name_tag = $(metric).attr("tags").filter(function (o) { return o.name; });
-            return (name_tag.length > 0) ? name_tag[0].name : undefined;
-        },
+        this.options = $.extend({}, $.datastream.defaults, options);
+        this.placeholder = placeholder;
 
-        plots: {},
+        if (placeholder.children('canvas').length > 0) {
 
-        plot: function (selector, metric_id, options) {
+            // if selected existig canvas, add metric
+            var plot_id = placeholder.slice(1);
+            // find difference of plot metrics and metrics in this.options
+            // add all new metrics to plot and remove other metrics
+            plots[plot_id].addMetric(this.options.metric_id);
 
-            var settings = $.extend({
-                url: this.url,
-                width: 400,
-                height: 200,
-                from: null,
-                to: null,
-                datastream: {
-                    metrics: [metric_id]
-                },
-                selection: {
-                    mode: "x",
-                    click: 3
-                },
-                crosshair: {
-                    mode: "x"
-                },
-                grid: {
-                    hoverable: true,
-                    autoHighlight: false
-                },
-                zoom: {
-                    interactive: false,
-                    trigger: 'dblclick',
-                    amount: 1.5
-                },
-                pan: {
-                    interactive: true,
-                    cursor: 'move',
-                    frameRate: 20
-                },
-                xaxis: {
-                    zoomRange: null,
-                    panRange: null
-                },
-                yaxis: {
-                    zoomRange: false,
-                    panRange: false
-                }
-            }, options);
+        } else {
 
-            if ($(selector).children('canvas').length > 0) {
+            // else add new plot
+            var plot_id = $.datastream.nextId();
+            placeholder.append('<div ' + 'id=\'' + plot_id + '\' ' +
+                'style=\'width:' + this.options.width + 'px; ' +
+                'height:' + this.options.height + 'px\'></div>');
 
-                // if selected existig canvas, add metric
-                var plot_id = selector.slice(1);
-                var metrics = this.plots[plot_id].addMetric(metric_id);
-
-            } else {
-
-                // else add new plot
-                var plot_id = this.nextId();
-                $(selector).append('<div ' + 'id=\'' + plot_id + '\' ' +
-                    'style=\'width:' + settings.width + 'px; ' +
-                    'height:' + settings.height + 'px\'></div>');
-
-                this.plots[plot_id] = $.plot('#' + plot_id, [[]], settings);
-            }
-        },
-
-        nextId: function () {
-            current_plot_id += 1;
-            return 'plot_' + current_plot_id;
-        },
-
-        currentId: function () {
-            return 'plot_' + current_plot_id;
+            plots[plot_id] = $.plot('#' + plot_id, [[]], this.options);
         }
+    }
 
+    $.datastream = {};
+
+    $.fn.datastream = function (options) {
+        return this.each(function () {
+            (new Datastream($(this), options));
+        });
     };
 
-    var options = {
-        url: 'http://127.0.0.1:8000/api/v1/metric/',
+    $.datastream.metricList = function (callback) {
+        $.getJSON($.datastream.defaults.url, function (data) {
+                callback(data.objects);
+            }
+        );
+    };
+
+    $.datastream.metricName = function (metric) {
+        var name_tag = $(metric).attr("tags").filter(function (o) { return o.name; });
+        return (name_tag.length > 0) ? name_tag[0].name : undefined;
+    };
+
+    $.datastream.nextId = function () {
+        current_plot_id += 1;
+        return 'plot_' + current_plot_id;
+    };
+
+    $.datastream.currentId = function () {
+        return 'plot_' + current_plot_id;
+    };
+
+    $.datastream.defaults = {
+        url: datastream_location,
+        width: 400,
+        height: 200,
+        from: null,
+        to: null,
+        datastream: {
+            metrics: []
+        },
+        selection: {
+            mode: "x",
+            click: 3
+        },
+        crosshair: {
+            mode: "x"
+        },
+        grid: {
+            hoverable: true,
+            autoHighlight: false
+        },
+        zoom: {
+            interactive: false,
+            trigger: 'dblclick',
+            amount: 1.5
+        },
+        pan: {
+            interactive: true,
+            cursor: 'move',
+            frameRate: 20
+        },
+        xaxis: {
+            zoomRange: null,
+            panRange: null
+        },
+        yaxis: {
+            zoomRange: false,
+            panRange: false
+        }
+    };
+
+    var flot_defaults = {
+        url: datastream_location,
         datastream: null,
         from: null,
         to: null
@@ -161,7 +182,7 @@
                     delete val.data;
                 }
             });
-            new_data.push({data: newpoints, label: datastream.metricName(data) + ' = ?'});
+            new_data.push({data: newpoints, label: $.datastream.metricName(data) + ' = ?'});
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -315,10 +336,9 @@
 
     $.plot.plugins.push({
         init: init,
-        options: options,
+        options: flot_defaults,
         name: 'datastream',
         version: "0.1"
     });
 
-    window.datastream = datastream;
 })(jQuery);

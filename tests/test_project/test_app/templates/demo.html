@@ -31,7 +31,11 @@
             <button id='addplot'>add plot</button>
             <span id='step'></span>
         </p>
+
         <div id='placeholder'></div>
+        {% if debug %}
+        <div id='debug'></div>
+        {% endif %}
     </div>
     <script type="text/javascript">
         $(document).ready(function () {
@@ -42,23 +46,31 @@
             });
 
             $('#addmetric').click(function () {
-                datastream.plot('#' + datastream.currentId(), $('#selectmetric').val());
+                $('#' + $.datastream.currentId()).datastream({
+                    metric_id: $('#selectmetric').val()
+                });
             });
 
             $('#addplot').click(function () {
-                datastream.plot('#placeholder', $('#selectmetric').val());
+                $('#placeholder').datastream({
+                    metric_id: $('#selectmetric').val()
+                });
             });
 
-            datastream.metricList(function (metrics) {
+            $.datastream.metricList(function (metrics) {
                 $('#selectmetric option').remove();
 
                 $.each(metrics, function (i, metric) {
                     $('#selectmetric')
-                            .append($('<option>', { value : metric.id })
-                            .text(datastream.metricName(metric)));
+                        .append($('<option>', { value:metric.id })
+                        .text($.datastream.metricName(metric)));
                 });
 
-                datastream.plot('#placeholder', $('#selectmetric').val());
+                $('#placeholder').datastream({
+                    datastream: {
+                        metrics: [ $('#selectmetric').val() ]
+                    }
+                });
             });
         });
     </script>

@@ -101,6 +101,10 @@ INSTALLED_APPS = (
     'test_project.test_app',
 )
 
+INTERNAL_IPS = (
+    '127.0.0.1',
+)
+
 MONGO_DATABASE_NAME = 'test_project'
 
 import mongoengine
