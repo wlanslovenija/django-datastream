@@ -99,6 +99,7 @@ INSTALLED_APPS = (
     'django_datastream',
 #    'pushserver',
     'test_project.test_app',
+    'django_extensions',
 )
 
 INTERNAL_IPS = (

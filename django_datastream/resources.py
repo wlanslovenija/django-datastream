@@ -9,6 +9,7 @@ from tastypie import bundle, exceptions, fields, resources, utils
 
 from datastream import exceptions as datastream_exceptions
 from . import datastream
+from . import serializers
 
 class InvalidGranularity(exceptions.BadRequest):
     pass
@@ -26,6 +27,7 @@ class MetricResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
+        serializer = serializers.DatastreamSerializer()
 
     # TODO: Set help text
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)

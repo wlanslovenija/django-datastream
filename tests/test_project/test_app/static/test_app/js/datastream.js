@@ -1,9 +1,18 @@
 (function($, undefined) {
 
-    var plots = {},
+    var debug,
+        plots = {},
         current_plot_id = 0,
         datastream_location = '',
         restful_api_location = 'api/v1/metric/';
+
+    $(document).ready(function () {
+        debug = $('#debug');
+
+        if (!debug.length) {
+            debug = false;
+        }
+    });
 
     // #8138, IE may throw an exception when accessing
     // a field from window.location if document.domain has been set
@@ -19,12 +28,13 @@
 
     function Datastream(placeholder, options) {
 
+        var add_metric = undefined;
+
         if (options && options.metrics) {
             options = $.extend(options, { datastream: {metrics: options.metrics }});
             delete options.metrics;
         }
 
-        var add_metric = undefined;
         if (options && options.add_metric) {
             add_metric = options.add_metric;
             delete options.add_metric;
@@ -162,9 +172,13 @@
         }
 
         function updateData(plot, data) {
-            var t, v,
+            var t, v, i = 0,
                 newpoints = [],
-                i = 0;
+                o = plot.getOptions();
+
+            if (debug) {
+                window.console.log('RESPONSE: data fetched');
+            }
 
             for (i; i < data.datapoints.length; i += 1) {
                 t = data.datapoints[i].t;
@@ -192,7 +206,37 @@
                     delete val.data;
                 }
             });
+
             new_data.push({data: newpoints, label: $.datastream.metricName(data) + ' = ?'});
+
+            if (debug) {
+                function toDebugTime(seconds) {
+                    function twoDigits(digit) {
+                        return ("0" + digit).slice(-2);
+                    }
+
+                    var d = new Date();
+                    d.setTime(seconds * 1000);
+                    return twoDigits(d.getHours()) + ':' +
+                        twoDigits(d.getMinutes()) + ':' +
+                        twoDigits(d.getSeconds()) + ' ' +
+                        twoDigits(d.getDate()) + '.' +
+                        twoDigits(d.getMonth() + 1) + '.' +
+                        d.getFullYear();
+                }
+
+                debug.find('#debugTable tr:last').after(
+                    '<tr><td>' + $.datastream.metricName(data) + '</td>' +
+                        '<td>' + data.granularity + '</td>' +
+                        '<td>' + toDebugTime(o.from) + '</td>' +
+                        '<td>' + toDebugTime(o.to) + '</td>' +
+                        '<td>' + newpoints.length + '</td></tr>'
+                );
+            }
+
+            if (debug) {
+                window.console.log('PARSED: data');
+            }
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -218,7 +262,13 @@
                 o.datastream.metrics.push(metric);
             }
 
-            $.getJSON(o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m',
+            var get_url = o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m';
+
+            if (debug) {
+                window.console.log('GET ' + get_url);
+            }
+
+            $.getJSON(get_url,
                 function (data) {
                     updateData(plot, data);
                 }

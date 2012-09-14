@@ -34,16 +34,29 @@
 
         <div id='placeholder'></div>
         {% if debug %}
-        <div id='debug'></div>
+        <div id='debug'>
+            <h3>DEBUG INFO</h3>
+            <table id="debugTable">
+                <tr>
+                    <td>Metric</td>
+                    <td>Granularity</td>
+                    <td>From</td>
+                    <td>To</td>
+                    <td>Elements</td>
+                </tr>
+            </table>
+        </div>
         {% endif %}
     </div>
     <script type="text/javascript">
         $(document).ready(function () {
 
-            $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
-                window.console.error(event, jqXHR, ajaxSettings, thrownError);
-                alert("Oops, something went wrong...");
-            });
+            if (!$('#debug').length) {
+                $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
+                    window.console.error(event, jqXHR, ajaxSettings, thrownError);
+                    alert("Oops, something went wrong...");
+                });
+            }
 
             $('#addmetric').click(function () {
                 $('#' + $.datastream.currentId()).datastream({

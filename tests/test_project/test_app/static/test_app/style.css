@@ -49,3 +49,17 @@ a:not(:hover) {
 pre, code, textarea {
     font-family: "Lucida Console", Monaco, monospace;
 }
+
+#debug {
+    margin-top: 50px;
+    font-size: 10px;
+}
+
+#debugTable {
+    border-collapse: collapse;
+}
+
+#debugTable td, #debugTable th{
+    border: 1px solid black;
+    padding: 5px;
+}
