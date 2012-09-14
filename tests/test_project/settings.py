@@ -1,11 +1,15 @@
 # Django settings for test_project project
 
-import os.path
+import os.path, socket
 
 settings_dir = os.path.abspath(os.path.dirname(__file__))
 default_template_dir = os.path.join(settings_dir, 'templates')
 
-DEBUG = True
+if socket.gethostname() == 'katha':
+    DEBUG = TEMPLATE_DEBUG = False
+else:
+    DEBUG = TEMPLATE_DEBUG = True
+
 TEMPLATE_DEBUG = DEBUG
 
 # We are not really using a relational database, but tests fail without
