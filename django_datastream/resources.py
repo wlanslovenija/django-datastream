@@ -76,17 +76,17 @@ class MetricResource(resources.Resource):
         return data
 
     def _get_query_params(self, request):
-        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].name.lower()[0])
+        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].key())
         for g in datastream.Granularity.values:
-            if granularity == g.name.lower()[0]:
+            if granularity == g.key():
                 granularity = g
                 break
         else:
             raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
-        start = datetime.datetime.utcfromtimestamp(float(request.GET.get(QUERY_START, 0)))
+        start = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_START, 0)))
         if QUERY_END in request.GET:
-            end = datetime.datetime.utcfromtimestamp(float(request.GET.get(QUERY_END)))
+            end = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_END)))
         else:
             end = None
 

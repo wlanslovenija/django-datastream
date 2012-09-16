@@ -2,6 +2,7 @@
 
     var debug,
         plots = {},
+        cached_data = {},
         current_plot_id = 0,
         datastream_location = '',
         restful_api_location = 'api/v1/metric/';
@@ -138,6 +139,30 @@
         to: null
     };
 
+    function getMetricData(metric_id, granularity, from, to, callback) {
+
+        if (cached_data[metric_id] && cached_data[metric_id][granularity]) {
+            callback(cached_data[metric_id][granularity]);
+
+        } else {
+            var get_url = $.datastream.defaults.url + metric_id + '/?g=' + granularity + '&s=' + from + '&e=' + to + '&d=m';
+
+            if (debug) {
+                window.console.log('GET ' + get_url);
+            }
+
+            $.getJSON(get_url,
+                function (data) {
+                    if (!cached_data.metric_id) {
+                        cached_data[metric_id] = {};
+                    }
+                    cached_data[metric_id][granularity] = data;
+                    callback(data);
+                }
+            );
+        }
+    }
+
     function init(plot) {
         var enabled = false,
             metrics = [],
@@ -166,8 +191,6 @@
 
                 plot.getAxes().xaxis.options.mode = 'time';
                 plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
-
-                fetchData(plot, s);
             }
         }
 
@@ -262,20 +285,12 @@
                 o.datastream.metrics.push(metric);
             }
 
-            var get_url = o.url + metric + '/?g=' + gr[i] + '&s=' + o.from + '&e=' + o.to + '&d=m';
-
-            if (debug) {
-                window.console.log('GET ' + get_url);
-            }
-
-            $.getJSON(get_url,
-                function (data) {
-                    updateData(plot, data);
-                }
-            );
+            getMetricData(metric, gr[i], o.from, o.to, function (data) {
+                updateData(plot, data);
+            });
         };
 
-        function fetchData(plot, s) {
+        function fetchData(plot) {
 
             $.each(metrics, function(key, val) {
                 plot.addMetric(val);
@@ -384,6 +399,7 @@
             eventHolder.bind('contextmenu', onContextMenu);
             plot.getPlaceholder().bind('plothover', onHover);
             plot.getPlaceholder().bind('plotselected', onPlotSelected);
+            fetchData(plot);
         }
 
         function shutdown(plot, eventHolder) {
