@@ -76,9 +76,9 @@ class MetricResource(resources.Resource):
         return data
 
     def _get_query_params(self, request):
-        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].key())
+        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].key)
         for g in datastream.Granularity.values:
-            if granularity == g.key():
+            if granularity == g.key:
                 granularity = g
                 break
         else:
