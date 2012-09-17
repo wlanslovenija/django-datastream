@@ -185,7 +185,7 @@
 
                 if (s.from === null) {
                     s.from = s.to - 60*60*24*7;
-                } else if (jQuery.type(settings.from) === 'date') {
+                } else if (jQuery.type(s.from) === 'date') {
                     s.from = Math.floor(s.from.getTime() / 1000.0)
                 }
 
@@ -208,13 +208,13 @@
                 v = data.datapoints[i].v;
 
                 if ($.isPlainObject(t)) {
-                    t = new Date(t['a']).getTime();
+                    t = new Date(t.a).getTime();
                 } else {
                     t = new Date(t).getTime();
                 }
 
                 if ($.isPlainObject(v)) {
-                    v = v['m'];
+                    v = v.m;
                 } else {
                     v = v;
                 }
