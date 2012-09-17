@@ -60,13 +60,13 @@
 
             $('#addmetric').click(function () {
                 $('#' + $.datastream.currentId()).datastream({
-                    add_metric: $('#selectmetric').val()
+                    'add_metric': $('#selectmetric').val()
                 });
             });
 
             $('#addplot').click(function () {
                 $('#placeholder').datastream({
-                    metrics: [ $('#selectmetric').val() ]
+                    'metrics': [ $('#selectmetric').val() ]
                 });
             });
 
@@ -75,12 +75,12 @@
 
                 $.each(metrics, function (i, metric) {
                     $('#selectmetric')
-                        .append($('<option>', { value:metric.id })
+                        .append($('<option>', { 'value': metric.id })
                         .text($.datastream.metricName(metric)));
                 });
 
                 $('#placeholder').datastream({
-                        metrics: [ $('#selectmetric').val() ]
+                        'metrics': [ $('#selectmetric').val() ]
                 });
             });
         });

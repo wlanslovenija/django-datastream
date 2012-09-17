@@ -32,7 +32,7 @@
         var add_metric = undefined;
 
         if (options && options.metrics) {
-            options = $.extend(options, { datastream: {metrics: options.metrics }});
+            options = $.extend(options, { 'datastream': {'metrics': options.metrics }});
             delete options.metrics;
         }
 
@@ -93,50 +93,50 @@
     };
 
     $.datastream.defaults = {
-        url: datastream_location,
-        width: 400,
-        height: 200,
-        from: null,
-        to: null,
-        datastream: {
-            metrics: []
+        'url': datastream_location,
+        'width': 400,
+        'height': 200,
+        'from': null,
+        'to': null,
+        'datastream': {
+            'metrics': []
         },
-        selection: {
-            mode: "x",
-            click: 3
+        'selection': {
+            'mode': "x",
+            'click': 3
         },
-        crosshair: {
-            mode: "x"
+        'crosshair': {
+            'mode': "x"
         },
-        grid: {
-            hoverable: true,
-            autoHighlight: false
+        'grid': {
+            'hoverable': true,
+            'autoHighlight': false
         },
-        zoom: {
-            interactive: false,
-            trigger: 'dblclick',
-            amount: 1.5
+        'zoom': {
+            'interactive': false,
+            'trigger': 'dblclick',
+            'amount': 1.5
         },
-        pan: {
-            interactive: true,
-            cursor: 'move',
-            frameRate: 20
+        'pan': {
+            'interactive': true,
+            'cursor': 'move',
+            'frameRate': 20
         },
-        xaxis: {
-            zoomRange: null,
-            panRange: null
+        'xaxis': {
+            'zoomRange': null,
+            'panRange': null
         },
-        yaxis: {
-            zoomRange: false,
-            panRange: false
+        'yaxis': {
+            'zoomRange': false,
+            'panRange': false
         }
     };
 
     var flot_defaults = {
-        url: datastream_location,
-        datastream: null,
-        from: null,
-        to: null
+        'url': datastream_location,
+        'datastream': null,
+        'from': null,
+        'to': null
     };
 
     function getMetricData(metric_id, granularity, from, to, callback) {
@@ -225,12 +225,12 @@
             var new_data = [];
             $.each(plot.getData(), function(key, val) {
                 if (val.data.length !== 0) {
-                    new_data.push({data: val.data, label: val.label});
+                    new_data.push({'data': val.data, 'label': val.label});
                     delete val.data;
                 }
             });
 
-            new_data.push({data: newpoints, label: $.datastream.metricName(data) + ' = ?'});
+            new_data.push({'data': newpoints, 'label': $.datastream.metricName(data) + ' = ?'});
 
             if (debug) {
                 function toDebugTime(seconds) {
@@ -299,7 +299,7 @@
 
         function zoom(from, to) {
             var xaxes_options = plot.getAxes().xaxis.options;
-            zoom_stack.push({min: xaxes_options.min, max: xaxes_options.max});
+            zoom_stack.push({'min': xaxes_options.min, 'max': xaxes_options.max});
             xaxes_options.min = from;
             xaxes_options.max = to;
 
@@ -310,7 +310,7 @@
             // Stupid work-around. For crosshair to work we must set selection
             // plugin to an insane selection. Otherwise the plugin thinks we
             // are still in selection process. I could hack the plugin, but ...
-            plot.setSelection({ xaxes: { from: 0, to: 0} });
+            plot.setSelection({ 'xaxes': { 'from': 0, 'to': 0} });
         }
 
         function zoomOut() {
@@ -415,10 +415,10 @@
     }
 
     $.plot.plugins.push({
-        init: init,
-        options: flot_defaults,
-        name: 'datastream',
-        version: "0.1"
+        'init': init,
+        'options': flot_defaults,
+        'name': 'datastream',
+        'version': "0.1"
     });
 
 })(jQuery);
