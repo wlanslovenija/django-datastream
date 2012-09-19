@@ -140,26 +140,208 @@
     };
 
     function getMetricData(metric_id, granularity, from, to, callback) {
+        var intervals_update,
+            intervals = [],
+            collection = (cached_data[metric_id] &&
+                cached_data[metric_id][granularity]) ?
+                cached_data[metric_id][granularity] : null;
 
-        if (cached_data[metric_id] && cached_data[metric_id][granularity]) {
-            callback(cached_data[metric_id][granularity]);
+        if (from >= to) {
+            throw new Error('Argument Error: argument from must be less than argument to.');
+        }
 
-        } else {
-            var get_url = $.datastream.defaults.url + metric_id + '/?g=' + granularity + '&s=' + from + '&e=' + to + '&d=m';
+        intervals.push([from, to]);
 
-            if (debug) {
-                window.console.log('GET ' + get_url);
+        // check intersections of requested data with local data
+        if (collection !== null) {
+            $.each(collection, function (i, c) {
+                var add = [];
+
+                intervals = $.grep(intervals, function (interval, j) {
+                    var f = interval[0],
+                        t = interval[1];
+
+                    if (f <= c.to && t >= c.from) {
+                        // requested data intersects with given interval
+
+                        if (f < c.from && t > c.to) {
+                            // requested data interval larger than given
+                            add.push([f, c.from]);
+                            add.push([c.to, t]);
+                        } else if (f < c.from) {
+                            // requested data interval is to the left of given
+                            add.push([f, c.from]);
+                        } else if (t > c.to) {
+                            // requested data interval is to the right of given
+                            add.push([c.to, t]);
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+
+                intervals = intervals.concat(add);
+
+                // if requested data is in local data
+                if (intervals.length === 0) {
+                    return false;
+                }
+            });
+        }
+
+        function selectData() {
+            // return some data (even if not all is received yet)
+            var data = {},
+                points = [],
+                collection = cached_data[metric_id][granularity];
+
+            function bisect_points(val, arr) {
+                var len = arr.length,
+                    half = Math.floor(len / 2);
+
+                if (len === 0) {
+                    return -1;
+                }
+
+                if (val <= arr[0][0]) {
+                    return 0;
+                } else if (val >= arr[len - 1][0]) {
+                    return len - 1;
+                } else {
+                    return (val < arr[half][0]) ?
+                        bisect_points(val, arr.slice(0, half)) :
+                        bisect_points(val, arr.slice(half, len));
+                }
             }
 
-            $.getJSON(get_url,
-                function (data) {
-                    if (!cached_data.metric_id) {
-                        cached_data[metric_id] = {};
-                    }
-                    cached_data[metric_id][granularity] = data;
-                    callback(data);
+            if (!collection || !$.isArray(collection) || collection.length === 0) {
+                throw new Error('WTF: collection should never be null or empty here.');
+            }
+
+            collection.sort(function (a, b) { return a.from - b.from });
+
+            $.each(collection, function (i, c) {
+                if (from <= c.to && to >= c.from) {
+                    // requested data intersects with collection
+                    var f = (from < c.from) ? c.from : from,
+                        t = (to > c.to) ? c.to : to,
+                        i = bisect_points(f, c.data),
+                        j = bisect_points(t, c.data);
+
+                    points = points.concat(c.data.slice(i, j + 1));
                 }
-            );
+            });
+
+            data.data = points;
+            data.label = collection[0].label;
+            data.from = from;
+            data.to = to;
+
+            callback(data);
+        }
+
+        if (intervals.length === 0) {
+            // all requested data is in the local collection
+            selectData();
+
+        } else {
+            $.each(intervals, function (i, interval) {
+                var from = interval[0],
+                    to = interval[1];
+
+                var get_url = $.datastream.defaults.url + metric_id +
+                    '/?g=' + granularity +
+                    '&s=' + Math.floor(from / 1000) +
+                    '&e=' + Math.floor(to / 1000) +
+                    '&d=m';
+
+                if (debug) {
+                    window.console.log('GET ' + get_url);
+                }
+
+                $.getJSON(get_url,
+                    function (data) {
+                        var t, v, i,
+                            points = [],
+                            processed_data = {},
+                            label = $.datastream.metricName(data) + ' = ?',
+                            new_interval = true;
+
+                            if (debug) {
+                            function toDebugTime(miliseconds) {
+                                function twoDigits(digit) {
+                                    return ("0" + digit).slice(-2);
+                                }
+
+                                var d = new Date();
+                                d.setTime(miliseconds);
+                                return twoDigits(d.getHours()) + ':' +
+                                    twoDigits(d.getMinutes()) + ':' +
+                                    twoDigits(d.getSeconds()) + ' ' +
+                                    twoDigits(d.getDate()) + '.' +
+                                    twoDigits(d.getMonth() + 1) + '.' +
+                                    d.getFullYear();
+                            }
+
+                            debug.find('#debugTable tr:last').after(
+                                '<tr><td>' + $.datastream.metricName(data) + '</td>' +
+                                    '<td>' + granularity + '</td>' +
+                                    '<td>' + toDebugTime(from) + '</td>' +
+                                    '<td>' + toDebugTime(to) + '</td>' +
+                                    '<td>' + data.datapoints.length + '</td></tr>'
+                            );
+                        }
+
+                        for (i = 0; i < data.datapoints.length; i += 1) {
+                            t = data.datapoints[i].t;
+                            v = data.datapoints[i].v;
+
+                            if ($.isPlainObject(t)) {
+                                t = new Date(t.a).getTime();
+                            } else {
+                                t = new Date(t).getTime();
+                            }
+
+                            if ($.isPlainObject(v)) {
+                                v = v.m;
+                            } else {
+                                v = v;
+                            }
+
+                            points.push([t, v]);
+                        }
+
+                        if (!cached_data[metric_id]) {
+                            cached_data[metric_id] = {};
+                            cached_data[metric_id][granularity] = [];
+                        } else {
+                            $.each(collection, function(j, c) {
+                                // concat with existing interval if possible
+                                if (c.from === to) {
+                                    c.data = points.concat(c.data);
+                                    c.from = from;
+                                    new_interval = false;
+                                } else if (c.to === from) {
+                                    c.data = c.data.concat(points);
+                                    c.to = to;
+                                    new_interval = false;
+                                }
+                            });
+                        }
+
+                        if (new_interval) {
+                            processed_data.data = points;
+                            processed_data.label = label;
+                            processed_data.from = from;
+                            processed_data.to = to;
+                            cached_data[metric_id][granularity].push(processed_data);
+                        }
+
+                        selectData();
+                    }
+                );
+
+            });
         }
     }
 
@@ -178,15 +360,15 @@
                 metrics = s.datastream.metrics;
 
                 if (s.to === null) {
-                    s.to = Math.floor(new Date().getTime() / 1000.0);
+                    s.to = new Date().getTime();
                 } else if (jQuery.type(s.to) === 'date') {
-                    s.to = Math.floor(s.to.getTime() / 1000.0)
+                    s.to = s.to.getTime();
                 }
 
                 if (s.from === null) {
-                    s.from = s.to - 60*60*24*7;
+                    s.from = s.to - 60*60*24*7*1000;
                 } else if (jQuery.type(s.from) === 'date') {
-                    s.from = Math.floor(s.from.getTime() / 1000.0)
+                    s.from = s.from.getTime();
                 }
 
                 plot.getAxes().xaxis.options.mode = 'time';
@@ -195,33 +377,6 @@
         }
 
         function updateData(plot, data) {
-            var t, v, i = 0,
-                newpoints = [],
-                o = plot.getOptions();
-
-            if (debug) {
-                window.console.log('RESPONSE: data fetched');
-            }
-
-            for (i; i < data.datapoints.length; i += 1) {
-                t = data.datapoints[i].t;
-                v = data.datapoints[i].v;
-
-                if ($.isPlainObject(t)) {
-                    t = new Date(t.a).getTime();
-                } else {
-                    t = new Date(t).getTime();
-                }
-
-                if ($.isPlainObject(v)) {
-                    v = v.m;
-                } else {
-                    v = v;
-                }
-
-                newpoints.push([t, v]);
-            }
-
             var new_data = [];
             $.each(plot.getData(), function(key, val) {
                 if (val.data.length !== 0) {
@@ -230,36 +385,7 @@
                 }
             });
 
-            new_data.push({'data': newpoints, 'label': $.datastream.metricName(data) + ' = ?'});
-
-            if (debug) {
-                function toDebugTime(seconds) {
-                    function twoDigits(digit) {
-                        return ("0" + digit).slice(-2);
-                    }
-
-                    var d = new Date();
-                    d.setTime(seconds * 1000);
-                    return twoDigits(d.getHours()) + ':' +
-                        twoDigits(d.getMinutes()) + ':' +
-                        twoDigits(d.getSeconds()) + ' ' +
-                        twoDigits(d.getDate()) + '.' +
-                        twoDigits(d.getMonth() + 1) + '.' +
-                        d.getFullYear();
-                }
-
-                debug.find('#debugTable tr:last').after(
-                    '<tr><td>' + $.datastream.metricName(data) + '</td>' +
-                        '<td>' + data.granularity + '</td>' +
-                        '<td>' + toDebugTime(o.from) + '</td>' +
-                        '<td>' + toDebugTime(o.to) + '</td>' +
-                        '<td>' + newpoints.length + '</td></tr>'
-                );
-            }
-
-            if (debug) {
-                window.console.log('PARSED: data');
-            }
+            new_data.push(data);
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -269,7 +395,7 @@
         plot.addMetric = function(metric) {
             var i,
                 o = plot.getOptions(),
-                span = o.to - o.from,
+                span = (o.to - o.from) / 1000,
                 gr = ["s", "m", "h", "d"],
                 grf = [1, 60, 3600, 86400];
 
