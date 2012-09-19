@@ -140,8 +140,7 @@
     };
 
     function getMetricData(metric_id, granularity, from, to, callback) {
-        var intervals_update,
-            intervals = [],
+        var intervals = [],
             collection = (cached_data[metric_id] &&
                 cached_data[metric_id][granularity]) ?
                 cached_data[metric_id][granularity] : null;
