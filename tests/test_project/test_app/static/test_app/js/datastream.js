@@ -5,7 +5,8 @@
         cached_data = {},
         current_plot_id = 0,
         datastream_location = '',
-        restful_api_location = 'api/v1/metric/';
+        restful_api_location = 'api/v1/metric/',
+        query_in_progress = false;
 
     $(document).ready(function () {
         debug = $('#debug');
@@ -129,6 +130,11 @@
         'yaxis': {
             'zoomRange': false,
             'panRange': false
+        },
+        'series': {
+            'lines': {
+                'lineWidth': 1
+            }
         }
     };
 
@@ -140,6 +146,11 @@
     };
 
     function getMetricData(metric_id, granularity, from, to, callback) {
+        if (query_in_progress) {
+            setTimeout(function () { getMetricData(metric_id, granularity, from, to, callback); }, 40);
+            return;
+        }
+
         var intervals = [],
             collection = (cached_data[metric_id] &&
                 cached_data[metric_id][granularity]) ?
@@ -160,19 +171,19 @@
                     var f = interval[0],
                         t = interval[1];
 
-                    if (f <= c.to && t >= c.from) {
+                    if (f <= c.points_to && t >= c.points_from) {
                         // requested data intersects with given interval
 
-                        if (f < c.from && t > c.to) {
+                        if (f < c.points_from && t > c.points_to) {
                             // requested data interval larger than given
-                            add.push([f, c.from]);
-                            add.push([c.to, t]);
-                        } else if (f < c.from) {
+                            add.push([f, c.points_from]);
+                            add.push([c.points_to, t]);
+                        } else if (f < c.points_from) {
                             // requested data interval is to the left of given
-                            add.push([f, c.from]);
-                        } else if (t > c.to) {
+                            add.push([f, c.points_from]);
+                        } else if (t > c.points_to) {
                             // requested data interval is to the right of given
-                            add.push([c.to, t]);
+                            add.push([c.points_to, t]);
                         }
                         return false;
                     }
@@ -217,13 +228,13 @@
                 throw new Error('WTF: collection should never be null or empty here.');
             }
 
-            collection.sort(function (a, b) { return a.from - b.from });
+            collection.sort(function (a, b) { return a.query_from - b.query_from });
 
             $.each(collection, function (i, c) {
-                if (from <= c.to && to >= c.from) {
+                if (from <= c.query_to && to >= c.query_from) {
                     // requested data intersects with collection
-                    var f = (from < c.from) ? c.from : from,
-                        t = (to > c.to) ? c.to : to,
+                    var f = (from < c.query_from) ? c.query_from : from,
+                        t = (to > c.query_to) ? c.query_to : to,
                         i = bisect_points(f, c.data),
                         j = bisect_points(t, c.data);
 
@@ -239,11 +250,12 @@
             callback(data);
         }
 
-        if (intervals.length === 0) {
-            // all requested data is in the local collection
+        if (collection) {
+            // show local data first, add more data to the plot when received
             selectData();
+        }
 
-        } else {
+        if (intervals.length > 0) {
             $.each(intervals, function (i, interval) {
                 var from = interval[0],
                     to = interval[1];
@@ -257,16 +269,20 @@
                 if (debug) {
                     window.console.log('GET ' + get_url);
                 }
-
+                query_in_progress = true;
                 $.getJSON(get_url,
                     function (data) {
-                        var t, v, i,
+                        var t, v, j, k, p_f, p_t, first, last,
                             points = [],
                             processed_data = {},
                             label = $.datastream.metricName(data) + ' = ?',
-                            new_interval = true;
+                            new_interval = true,
+                            update = true,
+                            collection = (cached_data[metric_id] &&
+                                cached_data[metric_id][granularity]) ?
+                                cached_data[metric_id][granularity] : null;
 
-                            if (debug) {
+                        if (debug) {
                             function toDebugTime(miliseconds) {
                                 function twoDigits(digit) {
                                     return ("0" + digit).slice(-2);
@@ -291,9 +307,14 @@
                             );
                         }
 
-                        for (i = 0; i < data.datapoints.length; i += 1) {
-                            t = data.datapoints[i].t;
-                            v = data.datapoints[i].v;
+                        if (data.datapoints.length === 0) {
+                            return;
+                        }
+
+                        // format data points
+                        for (j = 0; j < data.datapoints.length; j += 1) {
+                            t = data.datapoints[j].t;
+                            v = data.datapoints[j].v;
 
                             if ($.isPlainObject(t)) {
                                 t = new Date(t.a).getTime();
@@ -310,36 +331,86 @@
                             points.push([t, v]);
                         }
 
+                        // time of first and last point
+                        first = data.datapoints[0];
+                        last = data.datapoints[data.datapoints.length - 1];
+                        if ($.isPlainObject(first.t)) {
+                            p_f = new Date(first.t.z).getTime();
+                            p_t = new Date(last.t.z).getTime();
+                        } else {
+                            p_f = new Date(first.t).getTime();
+                            p_t = new Date(last.t).getTime();
+                        }
+
+                        // add to cache
                         if (!cached_data[metric_id]) {
                             cached_data[metric_id] = {};
                             cached_data[metric_id][granularity] = [];
                         } else {
                             $.each(collection, function(j, c) {
-                                // concat with existing interval if possible
-                                if (c.from === to) {
-                                    c.data = points.concat(c.data);
-                                    c.from = from;
+                                k = 0;
+                                // concatenate with an existing interval if possible
+                                if (c.points_from === to) {
+                                    if (points.length === 1 &&
+                                        points[0][0] === c.data[0][0] &&
+                                        points[0][1] === c.data[0][1]) {
+                                        update = false;
+                                        return false;
+                                    }
+                                    // remove overlapping points
+                                    while (k < c.data.length) {
+                                        if (points[points.length - 1][0] >= c.data[k][0]) {
+                                            k += 1;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    c.data = points.concat(c.data.slice(k));
+                                    c.query_from = from;
+                                    c.points_from = p_f;
                                     new_interval = false;
-                                } else if (c.to === from) {
-                                    c.data = c.data.concat(points);
-                                    c.to = to;
+
+                                } else if (c.points_to === from) {
+                                    if (points.length === 1 &&
+                                        points[0][0] === c.data[c.data.length - 1][0] &&
+                                        points[0][1] === c.data[c.data.length - 1][1]) {
+                                        update = false;
+                                        return false;
+                                    }
+                                    // remove overlapping points
+                                    while (k < c.data.length) {
+                                        if (points[0][0] <= c.data[c.data.length - 1 - k][0]) {
+                                            k += 1;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    c.data = c.data.slice(0, c.data.length - k).concat(points);
+                                    c.query_to = to;
+                                    c.points_to = p_t;
                                     new_interval = false;
                                 }
                             });
                         }
 
-                        if (new_interval) {
-                            processed_data.data = points;
-                            processed_data.label = label;
-                            processed_data.from = from;
-                            processed_data.to = to;
-                            cached_data[metric_id][granularity].push(processed_data);
-                        }
+                        if (update) {
+                            if (new_interval) {
+                                processed_data.data = points;
+                                processed_data.label = label;
+                                processed_data.query_from = from;
+                                processed_data.query_to = to;
+                                processed_data.points_from = p_f;
+                                processed_data.points_to = p_t;
+                                cached_data[metric_id][granularity].push(processed_data);
+                            }
 
-                        selectData();
+                            selectData();
+                        }
+                    }
+                ).complete(function () {
+                        query_in_progress = false;
                     }
                 );
-
             });
         }
     }
@@ -376,15 +447,24 @@
         }
 
         function updateData(plot, data) {
-            var new_data = [];
+            var new_metric = true,
+                new_data = [];
+
             $.each(plot.getData(), function(key, val) {
                 if (val.data.length !== 0) {
-                    new_data.push({'data': val.data, 'label': val.label});
+                    if (val.label === data.label) {
+                        new_data.push(data);
+                        new_metric = false;
+                    } else {
+                        new_data.push({'data': val.data, 'label': val.label});
+                    }
                     delete val.data;
                 }
             });
 
-            new_data.push(data);
+            if (new_metric) {
+                new_data.push(data);
+            }
 
             plot.setData(new_data);
             plot.setupGrid();
@@ -395,8 +475,8 @@
             var i,
                 o = plot.getOptions(),
                 span = (o.to - o.from) / 1000,
-                gr = ["s", "m", "h", "d"],
-                grf = [1, 60, 3600, 86400];
+                gr = ['s', 's10', 'm', 'm10', 'h', 'h6', 'd'],
+                grf = [1, 10, 60, 600, 3600, 21600, 86400];
 
             for (i = 0; i < gr.length; i++) {
                 if (span / grf[i] < 2 * o.width) {
