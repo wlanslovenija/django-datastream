@@ -22,17 +22,25 @@
         <p>Left-click and drag to pan. Right-click and drag for zoom.
             Right-click
             for zoom-out.</p>
-
-        <p>TODO: pan on right / left scroll, zoom on up / down scroll.</p>
-
-        <p>
-            <select id='selectmetric' width='200px'></select>
-            <button id='addmetric'>add metric</button>
-            <button id='addplot'>add plot</button>
-            <span id='step'></span>
-        </p>
-
+        <p>TODO: pan on horizontal scroll, vertical scroll to change granularity.</p>
+        <h2>Example 1: one pixel one value</h2>
+        <p>Default mode displays one value per pixel. It is activated by default
+           or on vertical scroll.</p>
+        <p><select id='selectmetric' width='200px'></select>
+           <button id='addmetric'>add metric</button>
+           <button id='addplot'>add plot</button>
+           <span id='step'></span></p>
         <div id='placeholder'></div>
+        <h2>Example 2: fixed interval</h2>
+        <p>Alternative mode of the datastream plot is to display a time series
+            in a fixed time interval. The mode is activated if you
+            specify the <i>from</i> setting or when you zoom to an interval
+            (right-click + drag).</p>
+        <p><select id='selectmetric_alt' width='200px'></select>
+           <button id='addmetric_alt'>add metric</button>
+           <button id='addplot_alt'>add plot</button>
+           <span id='step_alt'></span></p>
+        <div id='placeholder_alt'></div>
         {% if debug %}
         <div id='debug'>
             <h3>DEBUG INFO</h3>
@@ -58,20 +66,21 @@
                 });
             }
 
-            $('#addmetric').click(function () {
+            $('#addmetric_alt').click(function () {
                 $('#' + $.datastream.currentId()).datastream({
-                    'add_metric': $('#selectmetric').val()
+                    'add_metric': $('#selectmetric_alt').val()
                 });
             });
 
-            $('#addplot').click(function () {
-                $('#placeholder').datastream({
-                    'metrics': [ $('#selectmetric').val() ]
+            $('#addplot_alt').click(function () {
+                $('#placeholder_alt').datastream({
+                    'metrics': [ $('#selectmetric_alt').val() ]
                 });
             });
 
             $.datastream.metricList(function (metrics) {
                 $('#selectmetric option').remove();
+                $('#selectmetric_alt option').remove();
 
                 $.each(metrics, function (i, metric) {
                     $('#selectmetric')
@@ -79,8 +88,18 @@
                         .text($.datastream.metricName(metric)));
                 });
 
+                $.each(metrics, function (i, metric) {
+                    $('#selectmetric_alt')
+                            .append($('<option>', { 'value': metric.id })
+                            .text($.datastream.metricName(metric)));
+                });
+
                 $('#placeholder').datastream({
-                        'metrics': [ $('#selectmetric').val() ]
+                    'metrics': [ $('#selectmetric').val() ]
+                });
+
+                $('#placeholder_alt').datastream({
+                    'metrics': [ $('#selectmetric_alt').val() ]
                 });
             });
         });
