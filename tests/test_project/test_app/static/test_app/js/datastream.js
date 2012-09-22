@@ -8,6 +8,21 @@
         restful_api_location = 'api/v1/metric/',
         query_in_progress = false;
 
+    function toDebugTime (miliseconds) {
+        function twoDigits(digit) {
+            return ("0" + digit).slice(-2);
+        }
+
+        var d = new Date();
+        d.setTime(miliseconds);
+        return twoDigits(d.getHours()) + ':' +
+            twoDigits(d.getMinutes()) + ':' +
+            twoDigits(d.getSeconds()) + ' ' +
+            twoDigits(d.getDate()) + '.' +
+            twoDigits(d.getMonth() + 1) + '.' +
+            d.getFullYear();
+    }
+
     $(document).ready(function () {
         debug = $('#debug');
 
@@ -97,6 +112,7 @@
         'url': datastream_location,
         'width': 400,
         'height': 200,
+        'granularity': null,
         'from': null,
         'to': null,
         'datastream': {
@@ -151,9 +167,12 @@
             return;
         }
 
+        if (!cached_data[metric_id]) {
+            cached_data[metric_id] = {};
+        }
+
         var intervals = [],
-            collection = (cached_data[metric_id] &&
-                cached_data[metric_id][granularity]) ?
+            collection = (cached_data[metric_id][granularity]) ?
                 cached_data[metric_id][granularity] : null;
 
         if (from >= to) {
@@ -205,23 +224,20 @@
                 points = [],
                 collection = cached_data[metric_id][granularity];
 
-            function bisect_points(val, arr) {
-                var len = arr.length,
-                    half = Math.floor(len / 2);
+            function bisectPoints(val, arr) {
+                var h, i = 0,
+                    j = arr.length;
 
-                if (len === 0) {
-                    return -1;
+                while (i < j) {
+                    h = Math.floor((i + j) / 2);
+                    if (val > arr[h][0]) {
+                        i = h + 1;
+                    } else {
+                        j = h;
+                    }
                 }
 
-                if (val <= arr[0][0]) {
-                    return 0;
-                } else if (val >= arr[len - 1][0]) {
-                    return len - 1;
-                } else {
-                    return (val < arr[half][0]) ?
-                        bisect_points(val, arr.slice(0, half)) :
-                        bisect_points(val, arr.slice(half, len));
-                }
+                return i;
             }
 
             if (!collection || !$.isArray(collection) || collection.length === 0) {
@@ -235,10 +251,10 @@
                     // requested data intersects with collection
                     var f = (from < c.query_from) ? c.query_from : from,
                         t = (to > c.query_to) ? c.query_to : to,
-                        i = bisect_points(f, c.data),
-                        j = bisect_points(t, c.data);
+                        i = bisectPoints(f, c.data),
+                        j = bisectPoints(t, c.data);
 
-                    points = points.concat(c.data.slice(i, j + 1));
+                    points = points.concat(c.data.slice(i, j));
                 }
             });
 
@@ -278,26 +294,10 @@
                             label = $.datastream.metricName(data) + ' = ?',
                             new_interval = true,
                             update = true,
-                            collection = (cached_data[metric_id] &&
-                                cached_data[metric_id][granularity]) ?
+                            collection = (cached_data[metric_id][granularity]) ?
                                 cached_data[metric_id][granularity] : null;
 
                         if (debug) {
-                            function toDebugTime(miliseconds) {
-                                function twoDigits(digit) {
-                                    return ("0" + digit).slice(-2);
-                                }
-
-                                var d = new Date();
-                                d.setTime(miliseconds);
-                                return twoDigits(d.getHours()) + ':' +
-                                    twoDigits(d.getMinutes()) + ':' +
-                                    twoDigits(d.getSeconds()) + ' ' +
-                                    twoDigits(d.getDate()) + '.' +
-                                    twoDigits(d.getMonth() + 1) + '.' +
-                                    d.getFullYear();
-                            }
-
                             debug.find('#debugTable tr:last').after(
                                 '<tr><td>' + $.datastream.metricName(data) + '</td>' +
                                     '<td>' + granularity + '</td>' +
@@ -343,8 +343,7 @@
                         }
 
                         // add to cache
-                        if (!cached_data[metric_id]) {
-                            cached_data[metric_id] = {};
+                        if (!cached_data[metric_id][granularity]) {
                             cached_data[metric_id][granularity] = [];
                         } else {
                             $.each(collection, function(j, c) {
@@ -418,7 +417,17 @@
     function init(plot) {
         var enabled = false,
             metrics = [],
-            zoom_stack = [];
+            zoom_stack = [],
+            granularity = [
+                {'name': 'Seconds',    'key': 's',   'span': 1},
+                {'name': '10 Seconds', 'key': 's10', 'span': 10},
+                {'name': 'Minutes',    'key': 'm',   'span': 60},
+                {'name': '10 Minutes', 'key': 'm10', 'span': 600},
+                {'name': 'Hours',      'key': 'h',   'span': 3600},
+                {'name': '6 Hours',    'key': 'h6',  'span': 21600},
+                {'name': 'Days',       'key': 'd',   'span': 86400}
+            ],
+            mode = 0;
 
         plot.metrics = function() {
             return metrics;
@@ -435,8 +444,16 @@
                     s.to = s.to.getTime();
                 }
 
+                if (s.granularity === null) {
+                    s.granularity = 2;
+                }
+
+                if (s.from !== null) {
+                    mode = 1;
+                }
+
                 if (s.from === null) {
-                    s.from = s.to - 60*60*24*7*1000;
+                    s.from = s.to - plot.getPlaceholder().width() * granularity[s.granularity].span * 1000;
                 } else if (jQuery.type(s.from) === 'date') {
                     s.from = s.from.getTime();
                 }
@@ -448,7 +465,9 @@
 
         function updateData(plot, data) {
             var new_metric = true,
-                new_data = [];
+                new_data = [],
+                o = plot.getOptions(),
+                xaxes_options = plot.getAxes().xaxis.options;
 
             $.each(plot.getData(), function(key, val) {
                 if (val.data.length !== 0) {
@@ -467,6 +486,8 @@
             }
 
             plot.setData(new_data);
+            xaxes_options.min = o.from;
+            xaxes_options.max = o.to;
             plot.setupGrid();
             plot.draw();
         }
@@ -474,23 +495,26 @@
         plot.addMetric = function(metric) {
             var i,
                 o = plot.getOptions(),
-                span = (o.to - o.from) / 1000,
-                gr = ['s', 's10', 'm', 'm10', 'h', 'h6', 'd'],
-                grf = [1, 10, 60, 600, 3600, 21600, 86400];
+                gr = granularity[o.granularity].key,
+                span = (o.to - o.from);
 
-            for (i = 0; i < gr.length; i++) {
-                if (span / grf[i] < 2 * o.width) {
-                    break;
+            if (mode === 1) {
+                // if alternative mode, find the best granularity
+                for (i = 0; i < granularity.length; i++) {
+                    if (span / 1000 / granularity[i].span < 2 * o.width) {
+                        break;
+                    }
                 }
+                i = (i > 0) ? i - 1 : i;
+                gr = granularity[i].key;
             }
 
-            i = (i > 0) ? i - 1 : i;
-
-            if (!$.inArray(metric, o.datastream.metrics)) {
+            if ($.inArray(metric, o.datastream.metrics) < 0) {
                 o.datastream.metrics.push(metric);
             }
 
-            getMetricData(metric, gr[i], o.from, o.to, function (data) {
+            getMetricData(metric, gr, o.from - Math.floor(span / 2),
+                o.to + Math.floor(span / 2), function (data) {
                 updateData(plot, data);
             });
         };
@@ -514,7 +538,8 @@
 
             // Stupid work-around. For crosshair to work we must set selection
             // plugin to an insane selection. Otherwise the plugin thinks we
-            // are still in selection process. I could hack the plugin, but ...
+            // are still in selection process. We could hack the plugin, but it
+            // is not polite to play with other people's toys.
             plot.setSelection({ 'xaxes': { 'from': 0, 'to': 0} });
         }
 
@@ -599,11 +624,26 @@
                 update_legend_timeout = setTimeout(updateLegend, 50);
         }
 
+        function onPan(event, plot) {
+            var o = plot.getOptions(),
+                xaxes_options = plot.getAxes().xaxis.options;
+
+            if (Math.abs(o.from - xaxes_options.min) / (xaxes_options.max - xaxes_options.min) > 0.3) {
+                o.from = xaxes_options.min;
+                o.to = xaxes_options.max;
+                if (debug) {
+                    window.console.log("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
+                }
+                fetchData(plot);
+            }
+        }
+
         function bindEvents(plot, eventHolder) {
             eventHolder.mouseup(onMouseUp);
             eventHolder.bind('contextmenu', onContextMenu);
             plot.getPlaceholder().bind('plothover', onHover);
             plot.getPlaceholder().bind('plotselected', onPlotSelected);
+            plot.getPlaceholder().bind('plotpan', onPan);
             fetchData(plot);
         }
 
