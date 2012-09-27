@@ -6,7 +6,8 @@
         current_plot_id = 0,
         datastream_location = '',
         restful_api_location = 'api/v1/metric/',
-        query_in_progress = false;
+        query_in_progress = false,
+        plot_redrawing = false;
 
     function toDebugTime (miliseconds) {
         function twoDigits(digit) {
@@ -637,12 +638,42 @@
             }
         }
 
+        function onScroll(event, delta, deltaX, deltaY) {
+            console.log(delta, deltaX, deltaY);
+
+            var o = plot.getOptions();
+
+            function changeGranularity(delta) {
+                o.granularity += delta;
+                plot_redrawing = true;
+                fetchData(plot);
+                setTimeout(function () {
+                    plot_redrawing = false;
+                }, 500);
+            }
+
+            if (!plot_redrawing && deltaY > 0 && o.granularity < granularity.length - 1) {
+                changeGranularity(1);
+
+            } else if (!plot_redrawing && deltaY < 0 && o.granularity > 0) {
+                changeGranularity(-1);
+
+            } else if (deltaX > 0) {
+
+            } else if (deltaX < 0) {
+
+            }
+
+            return false;
+        }
+
         function bindEvents(plot, eventHolder) {
             eventHolder.mouseup(onMouseUp);
             eventHolder.bind('contextmenu', onContextMenu);
             plot.getPlaceholder().bind('plothover', onHover);
             plot.getPlaceholder().bind('plotselected', onPlotSelected);
             plot.getPlaceholder().bind('plotpan', onPan);
+            plot.getPlaceholder().bind('mousewheel', onScroll);
             fetchData(plot);
         }
 
@@ -651,6 +682,7 @@
             eventHolder.unbind('contextmenu', onContextMenu);
             plot.getPlaceholder().unbind('plothover', onHover);
             plot.getPlaceholder().unbind('plotselected', onPlotSelected);
+            plot.getPlaceholder().unbind('mousewheel', onScroll);
         }
 
         plot.hooks.bindEvents.push(bindEvents);

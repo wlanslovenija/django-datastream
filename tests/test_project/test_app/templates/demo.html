@@ -13,13 +13,23 @@
     <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.selection.js" %}'></script>
     <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.navigate.js" %}'></script>
     <script type='text/javascript' src='{% static "test_app/flot/jquery.flot.crosshair.js" %}'></script>
+    <script type='text/javascript' src='{% static "test_app/jquery/jquery.mousewheel.js" %}'></script>
     <script type='text/javascript' src='{% static "test_app/js/datastream.js" %}'></script>
 </head>
 <body>
     <div id='content'>
         <h1>Datastream Test</h1>
 
-        <p>Left-click and drag to pan. Right-click and drag for zoom.
+        <p>Datastream plot has 2 modes:</p>
+        <ul>
+            <li><b>Fixed metric</b> (default mode): in this mode each pixel
+                represents one metric value.</li>
+            <li><b>Fixed interval</b> (alternative mode): when the </li>
+        </ul>
+
+            which change automatically upon user actions:
+
+            Left-click and drag to pan. Right-click and drag for zoom.
             Right-click
             for zoom-out.</p>
         <p>TODO: pan on horizontal scroll, vertical scroll to change granularity.</p>
