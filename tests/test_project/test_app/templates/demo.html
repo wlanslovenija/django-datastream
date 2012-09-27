@@ -59,6 +59,9 @@
     <script type="text/javascript">
         $(document).ready(function () {
 
+            var to = new Date(2012,8,19,12,0,0,0),
+                from = new Date(2012,8,13,12,0,0,0);
+
             if (!$('#debug').length) {
                 $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
                     window.console.error(event, jqXHR, ajaxSettings, thrownError);
@@ -66,14 +69,31 @@
                 });
             }
 
+            $('#addmetric').click(function () {
+                var plots = $('#placeholder').children();
+                $(plots[plots.length - 1]).datastream({
+                    'add_metric': $('#selectmetric').val()
+                });
+            });
+
+            $('#addplot').click(function () {
+                $('#placeholder').datastream({
+                    'to': to,
+                    'metrics': [ $('#selectmetric').val() ]
+                });
+            });
+
             $('#addmetric_alt').click(function () {
-                $('#' + $.datastream.currentId()).datastream({
+                var plots = $('#placeholder_alt').children();
+                $(plots[plots.length - 1]).datastream({
                     'add_metric': $('#selectmetric_alt').val()
                 });
             });
 
             $('#addplot_alt').click(function () {
                 $('#placeholder_alt').datastream({
+                    'from': from,
+                    'to': to,
                     'metrics': [ $('#selectmetric_alt').val() ]
                 });
             });
@@ -95,13 +115,13 @@
                 });
 
                 $('#placeholder').datastream({
-                    'to': new Date(2012,8,19,12,0,0,0),
+                    'to': to,
                     'metrics': [ $('#selectmetric').val() ]
                 });
 
                 $('#placeholder_alt').datastream({
-                    'from': new Date(2012,8,13,12,0,0,0),
-                    'to': new Date(2012,8,19,12,0,0,0),
+                    'from': from,
+                    'to': to,
                     'metrics': [ $('#selectmetric_alt').val() ]
                 });
             });
