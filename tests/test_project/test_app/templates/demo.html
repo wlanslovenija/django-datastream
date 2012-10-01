@@ -74,8 +74,8 @@
     <script type="text/javascript">
         $(document).ready(function () {
 
-            var to = new Date(2012,8,19,12,0,0,0),
-                from = new Date(2012,8,13,12,0,0,0);
+            var to = new Date(),
+                from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
 
             if (!$('#debug').length) {
                 $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
@@ -85,10 +85,11 @@
             }
 
             $('#addmetric').click(function (event) {
-                var plots = $('#placeholder').children();
-                $(plots[plots.length - 1]).datastream({
-                    'add_metric': $('#selectmetric').val()
-                });
+                var plots = $('#placeholder')
+                        .children(':last')
+                        .datastream({
+                            'add_metric': $('#selectmetric').val()
+                        });
             });
 
             $('#addplot').click(function (event) {
@@ -99,10 +100,11 @@
             });
 
             $('#addmetric_alt').click(function (event) {
-                var plots = $('#placeholder_alt').children();
-                $(plots[plots.length - 1]).datastream({
-                    'add_metric': $('#selectmetric_alt').val()
-                });
+                var plots = $('#placeholder_alt')
+                        .children(':last')
+                        .datastream({
+                            'add_metric': $('#selectmetric_alt').val()
+                        });
             });
 
             $('#addplot_alt').click(function (event) {
@@ -114,8 +116,7 @@
             });
 
             $.datastream.metricList(function (metrics) {
-                $('#selectmetric option').remove();
-                $('#selectmetric_alt option').remove();
+                $('#selectmetric option, #selectmetric_alt option').remove();
 
                 $.each(metrics, function (i, metric) {
                     $('#selectmetric')

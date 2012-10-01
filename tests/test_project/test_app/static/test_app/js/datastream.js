@@ -39,14 +39,15 @@
     } catch (e) {
         // Use the href attribute of an A element
         // since IE will modify it given document.location
-        datastream_location = document.createElement( "a" );
+        datastream_location = document.createElement('a');
         datastream_location.href = "";
         datastream_location = datastream_location.href + restful_api_location;
     }
 
     function Datastream(placeholder, options) {
 
-        var add_metric = undefined;
+        var self = this,
+            add_metric = null;
 
         if (options && options.metrics) {
             options = $.extend(options, { 'datastream': {'metrics': options.metrics }});
@@ -58,25 +59,27 @@
             delete options.add_metric;
         }
 
-        this.options = $.extend({}, $.datastream.defaults, options);
-        this.placeholder = placeholder;
+        self.options = $.extend({}, $.datastream.defaults, options);
+        self.placeholder = placeholder;
 
-        if (placeholder.children('canvas').length > 0 && add_metric) {
+        if (placeholder.children('canvas') && add_metric) {
 
             // if selected existig canvas, add metric
-            var plot_id = placeholder.attr('id');
-            this.options.datastream.metrics.push(add_metric);
+            var plot_id = placeholder.prop('id');
+            self.options.datastream.metrics.push(add_metric);
             plots[plot_id].addMetric(add_metric);
 
         } else {
 
             // else add new plot
             var plot_id = $.datastream.nextId();
-            placeholder.append('<div ' + 'id=\'' + plot_id + '\' ' +
-                'style=\'width:' + this.options.width + 'px; ' +
-                'height:' + this.options.height + 'px\'></div>');
+            placeholder.append($('<div>', {
+                'id': plot_id,
+                'style': 'width:' + self.options.width + 'px; ' +
+                'height:' + self.options.height + 'px'
+            }));
 
-            plots[plot_id] = $.plot('#' + plot_id, [[]], this.options);
+            plots[plot_id] = $.plot('#' + plot_id, [[]], self.options);
         }
     }
 
@@ -84,20 +87,19 @@
 
     $.fn.datastream = function (options) {
         return this.each(function () {
-            (new Datastream($(this), options));
+            new Datastream($(this), options);
         });
     };
 
     $.datastream.metricList = function (callback) {
-        $.getJSON($.datastream.defaults.url, function (data) {
-                callback(data.objects);
-            }
-        );
+        $.getJSON($.datastream.defaults.url, function (data, status) {
+            callback(data.objects);
+        });
     };
 
     $.datastream.metricName = function (metric) {
-        var name_tag = $(metric).attr("tags").filter(function (o) { return o.name; });
-        return (name_tag.length > 0) ? name_tag[0].name : undefined;
+        var name_tag = $.grep(metric.tags, function (val, i) { return val.name; });
+        return (name_tag.length) ? name_tag[0].name : undefined;
     };
 
     $.datastream.nextId = function () {
@@ -120,11 +122,11 @@
             'metrics': []
         },
         'selection': {
-            'mode': "x",
+            'mode': 'x',
             'click': 3
         },
         'crosshair': {
-            'mode': "x"
+            'mode': 'x'
         },
         'grid': {
             'hoverable': true,
@@ -177,7 +179,7 @@
                 cached_data[metric_id][granularity] : null;
 
         if (from >= to) {
-            throw new Error('Argument Error: argument from must be less than argument to.');
+            throw new Error("Argument Error: argument from must be less than argument to.");
         }
 
         intervals.push([from, to]);
@@ -241,7 +243,7 @@
             }
 
             if (!collection || !$.isArray(collection) || collection.length === 0) {
-                throw new Error('WTF: collection should never be null or empty here.');
+                throw new Error('The collection should never be null or empty here, ever! Something is very, very wrong.');
             }
 
             collection.sort(function (a, b) { return a.query_from - b.query_from });
@@ -271,7 +273,7 @@
             selectData();
         }
 
-        if (intervals.length > 0) {
+        if (intervals.length) {
             $.each(intervals, function (i, interval) {
                 var from = interval[0],
                     to = interval[1];
@@ -282,9 +284,8 @@
                     '&e=' + Math.floor(to / 1000) +
                     '&d=m';
 
-                if (debug) {
-                    window.console.log('GET ' + get_url);
-                }
+                console.debug('GET ' + get_url);
+
                 query_in_progress = true;
                 $.getJSON(get_url,
                     function (data) {
@@ -298,16 +299,16 @@
                                 cached_data[metric_id][granularity] : null;
 
                         if (debug) {
-                            debug.find('#debugTable tr:last').after(
-                                '<tr><td>' + $.datastream.metricName(data) + '</td>' +
-                                    '<td>' + granularity + '</td>' +
-                                    '<td>' + toDebugTime(from) + '</td>' +
-                                    '<td>' + toDebugTime(to) + '</td>' +
-                                    '<td>' + data.datapoints.length + '</td></tr>'
+                            debug.find('#debugTable tr:last').after($('<tr>')
+                                .append($('<td>').html($.datastream.metricName(data)))
+                                .append($('<td>').html(granularity))
+                                .append($('<td>').html(toDebugTime(from)))
+                                .append($('<td>').html(toDebugTime(to)))
+                                .append($('<td>').html(data.datapoints.length))
                             );
                         }
 
-                        if (data.datapoints.length === 0) {
+                        if (!data.datapoints) {
                             return;
                         }
 
@@ -419,13 +420,13 @@
             metrics = [],
             zoom_stack = [],
             granularity = [
-                {'name': 'Seconds',    'key': 's',   'span': 1},
-                {'name': '10 Seconds', 'key': '10s', 'span': 10},
-                {'name': 'Minutes',    'key': 'm',   'span': 60},
-                {'name': '10 Minutes', 'key': '10m', 'span': 600},
-                {'name': 'Hours',      'key': 'h',   'span': 3600},
-                {'name': '6 Hours',    'key': '6h',  'span': 21600},
-                {'name': 'Days',       'key': 'd',   'span': 86400}
+                {'name': "Seconds",    'key': 's',   'span': 1},
+                {'name': "10 Seconds", 'key': '10s', 'span': 10},
+                {'name': "Minutes",    'key': 'm',   'span': 60},
+                {'name': "10 Minutes", 'key': '10m', 'span': 600},
+                {'name': "Hours",      'key': 'h',   'span': 3600},
+                {'name': "6 Hours",    'key': '6h',  'span': 21600},
+                {'name': "Days",       'key': 'd',   'span': 86400}
             ],
             mode = 0;
 
@@ -639,9 +640,7 @@
             if (Math.abs(o.from - xaxes_options.min) / (xaxes_options.max - xaxes_options.min) > 0.3) {
                 o.from = xaxes_options.min;
                 o.to = xaxes_options.max;
-                if (debug) {
-                    window.console.log("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
-                }
+                console.debug("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
 
                 update();
             }
@@ -704,21 +703,24 @@
         }
 
         function bindEvents(plot, eventHolder) {
-            eventHolder.mouseup(onMouseUp);
-            eventHolder.bind('contextmenu', onContextMenu);
-            plot.getPlaceholder().bind('plothover', onHover);
-            plot.getPlaceholder().bind('plotselected', onPlotSelected);
-            plot.getPlaceholder().bind('plotpan', onPan);
-            plot.getPlaceholder().bind('mousewheel', onScroll);
+            eventHolder.mouseup(onMouseUp)
+                       .bind('contextmenu', onContextMenu);
+
+            plot.getPlaceholder().bind('plothover', onHover)
+                                 .bind('plotselected', onPlotSelected)
+                                 .bind('plotpan', onPan)
+                                 .bind('mousewheel', onScroll);
             update();
         }
 
         function shutdown(plot, eventHolder) {
-            eventHolder.unbind('mouseup', onMouseUp);
-            eventHolder.unbind('contextmenu', onContextMenu);
-            plot.getPlaceholder().unbind('plothover', onHover);
-            plot.getPlaceholder().unbind('plotselected', onPlotSelected);
-            plot.getPlaceholder().unbind('mousewheel', onScroll);
+            eventHolder.unbind('mouseup', onMouseUp)
+                       .unbind('contextmenu', onContextMenu);
+
+            plot.getPlaceholder().unbind('plothover', onHover)
+                                 .unbind('plotselected', onPlotSelected)
+                                 .bind('plotpan', onPan)
+                                 .unbind('mousewheel', onScroll);
         }
 
         plot.hooks.bindEvents.push(bindEvents);
@@ -730,7 +732,7 @@
         'init': init,
         'options': flot_defaults,
         'name': 'datastream',
-        'version': "0.1"
+        'version': '0.1'
     });
 
 })(jQuery);
