@@ -1,8 +1,7 @@
 import ujson
-from tastypie.serializers import Serializer
+from tastypie import serializers
 
-class DatastreamSerializer(Serializer):
-
+class DatastreamSerializer(serializers.Serializer):
     def to_json(self, data, options=None):
         """
         Given some Python data, produces JSON output.

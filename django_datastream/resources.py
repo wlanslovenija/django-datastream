@@ -8,8 +8,7 @@ from django.core import urlresolvers
 from tastypie import bundle, exceptions, fields, resources, utils
 
 from datastream import exceptions as datastream_exceptions
-from . import datastream
-from . import serializers
+from . import datastream, serializers
 
 class InvalidGranularity(exceptions.BadRequest):
     pass
