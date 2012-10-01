@@ -26,7 +26,6 @@ For example, query to return minutes granularity with only average, min, and max
 
     /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/?g=m&d=m,l&d=u
 
-
 Demo web page
 =============
 
@@ -44,5 +43,4 @@ Open new terminal window, cd to tests folder again and run mongo project::
 
 Open the demo web page at::
 
-    /test/
-
+    /

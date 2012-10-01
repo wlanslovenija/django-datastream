@@ -5,11 +5,7 @@ import os.path, socket
 settings_dir = os.path.abspath(os.path.dirname(__file__))
 default_template_dir = os.path.join(settings_dir, 'templates')
 
-if socket.gethostname() == 'katha':
-    DEBUG = TEMPLATE_DEBUG = False
-else:
-    DEBUG = TEMPLATE_DEBUG = True
-
+DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
 # We are not really using a relational database, but tests fail without
@@ -44,9 +40,9 @@ TEST_RUNNER = 'test_project.test_runner.MongoEngineTestSuiteRunner'
 
 # Absolute path to the directory static files should be collected to.
 # Don't put anything in this directory yourself; store your static files
-# in apps' "static/" subdirectories and in STATICFILES_DIRS.
-# Example: "/home/media/media.lawrence.com/static/"
-STATIC_ROOT = os.path.join(settings_dir, "static")
+# in apps' 'static/' subdirectories and in STATICFILES_DIRS.
+# Example: '/home/media/media.lawrence.com/static/'
+STATIC_ROOT = os.path.join(settings_dir, 'static')
 
 # URL prefix for static files.
 # Example: "http://media.lawrence.com/static/"
