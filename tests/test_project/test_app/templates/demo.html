@@ -24,18 +24,23 @@
         <ul>
             <li><b>Fixed metric</b> (default mode): in this mode each pixel
                 represents one metric value.</li>
-            <li><b>Fixed interval</b> (alternative mode): when the </li>
+            <li><b>Fixed interval</b> (alternative mode): when the user selects
+                an interval the best granularity is computed based on 2
+                guidelines: show as much information as possible, do not
+                show much more points than the pixel width.</li>
         </ul>
-
-            which change automatically upon user actions:
-
-            Left-click and drag to pan. Right-click and drag for zoom.
-            Right-click
-            for zoom-out.</p>
-        <p>TODO: pan on horizontal scroll, vertical scroll to change granularity.</p>
-        <h2>Example 1: one pixel one value</h2>
-        <p>Default mode displays one value per pixel. It is activated by default
-           or on vertical scroll.</p>
+        <p>User actions:</p>
+        <ul>
+            <li>Left-click and drag: pan</li>
+            <li>Right-click and drag: zoom to the selected interval (change to
+                mode 2)</li>
+            <li>Right-click: zoom-out (follow the zoom stack)</li>
+            <li>Scroll up and down: change granularity  (change to mode 1)</li>
+            <li>Scroll left and right: pan</li>
+        </ul>
+        <h2>Example 1: one value one pixel</h2>
+        <p>Default mode displays one value per pixel. Activated by default
+           or on scroll up / down.</p>
         <p><select id='selectmetric' width='200px'></select>
            <button id='addmetric'>add metric</button>
            <button id='addplot'>add plot</button>
