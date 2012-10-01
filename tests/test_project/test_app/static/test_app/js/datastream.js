@@ -420,11 +420,11 @@
             zoom_stack = [],
             granularity = [
                 {'name': 'Seconds',    'key': 's',   'span': 1},
-                {'name': '10 Seconds', 'key': 's10', 'span': 10},
+                {'name': '10 Seconds', 'key': '10s', 'span': 10},
                 {'name': 'Minutes',    'key': 'm',   'span': 60},
-                {'name': '10 Minutes', 'key': 'm10', 'span': 600},
+                {'name': '10 Minutes', 'key': '10m', 'span': 600},
                 {'name': 'Hours',      'key': 'h',   'span': 3600},
-                {'name': '6 Hours',    'key': 'h6',  'span': 21600},
+                {'name': '6 Hours',    'key': '6h',  'span': 21600},
                 {'name': 'Days',       'key': 'd',   'span': 86400}
             ],
             mode = 0;
@@ -458,12 +458,15 @@
                     s.from = s.from.getTime();
                 }
 
+                s.HtmlText = true;
+                s.title = "My Plot";
+
                 plot.getAxes().xaxis.options.mode = 'time';
                 plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
             }
         }
 
-        function updateData(plot, data) {
+        function updateData(data) {
             var new_metric = true,
                 new_data = [],
                 o = plot.getOptions(),
@@ -515,26 +518,32 @@
 
             getMetricData(metric, gr, o.from - Math.floor(span / 2),
                 o.to + Math.floor(span / 2), function (data) {
-                updateData(plot, data);
+                updateData(data);
             });
         };
 
-        function fetchData(plot) {
-
+        function update() {
             $.each(metrics, function(key, val) {
                 plot.addMetric(val);
             });
         }
 
         function zoom(from, to) {
-            var xaxes_options = plot.getAxes().xaxis.options;
-            zoom_stack.push({'min': xaxes_options.min, 'max': xaxes_options.max});
-            xaxes_options.min = from;
-            xaxes_options.max = to;
+            var o = plot.getOptions(),
+                xaxes_options = plot.getAxes().xaxis.options;
+
+            zoom_stack.push({
+                'min': xaxes_options.min,
+                'max': xaxes_options.max,
+                'granularity': o.granularity
+            });
+
+            mode = 1;
+            o.from = from;
+            o.to = to;
 
             plot.clearSelection();
-            plot.setupGrid();
-            plot.draw();
+            update();
 
             // Stupid work-around. For crosshair to work we must set selection
             // plugin to an insane selection. Otherwise the plugin thinks we
@@ -548,21 +557,20 @@
                 return;
             }
 
-            var xaxes_options = plot.getAxes().xaxis.options,
+            var o = plot.getOptions(),
                 zoom_level = zoom_stack.pop();
 
-            xaxes_options.min = zoom_level.min;
-            xaxes_options.max = zoom_level.max;
-
-            plot.setupGrid();
-            plot.draw();
+            o.from = zoom_level.min;
+            o.to = zoom_level.max;
+            o.granularity = zoom_level.granularity;
+            update();
         }
 
         function onPlotSelected(event, ranges) {
             zoom(ranges.xaxis.from, ranges.xaxis.to);
         }
 
-        function onContextMenu(e) {
+        function onContextMenu() {
             return false;
         }
 
@@ -618,13 +626,13 @@
             }
         }
 
-        function onHover(event, pos, item) {
+        function onHover(event, pos) {
             latest_position = pos;
             if (!update_legend_timeout)
                 update_legend_timeout = setTimeout(updateLegend, 50);
         }
 
-        function onPan(event, plot) {
+        function onPan() {
             var o = plot.getOptions(),
                 xaxes_options = plot.getAxes().xaxis.options;
 
@@ -634,34 +642,62 @@
                 if (debug) {
                     window.console.log("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
                 }
-                fetchData(plot);
+
+                update();
             }
         }
 
         function onScroll(event, delta, deltaX, deltaY) {
-            console.log(delta, deltaX, deltaY);
-
-            var o = plot.getOptions();
+            var o = plot.getOptions(),
+                xaxes_options = plot.getAxes().xaxis.options;
 
             function changeGranularity(delta) {
-                o.granularity += delta;
+                zoom_stack = [];
+                if (mode === 1) {
+                    var time_span = xaxes_options.max - xaxes_options.min,
+                        theoretic_time_span = plot.width() * granularity[o.granularity].span * 1000;
+
+                    if ((time_span - theoretic_time_span) * delta > 0) {
+                        if (o.granularity + delta >= 0 && o.granularity + delta < granularity.length) {
+                            o.granularity += delta;
+                        }
+                    }
+                    mode = 0;
+
+                } else {
+                    if (o.granularity + delta < 0 || o.granularity + delta >= granularity.length) {
+                        return;
+                    }
+                    o.granularity += delta;
+                }
+
+                o.to = xaxes_options.max;
+                o.from = o.to - plot.width() * granularity[o.granularity].span * 1000;
                 plot_redrawing = true;
-                fetchData(plot);
+                update();
+
                 setTimeout(function () {
                     plot_redrawing = false;
-                }, 500);
+                }, 300);
             }
 
-            if (!plot_redrawing && deltaY > 0 && o.granularity < granularity.length - 1) {
+            if (!plot_redrawing && deltaY > 0.1) {
                 changeGranularity(1);
 
-            } else if (!plot_redrawing && deltaY < 0 && o.granularity > 0) {
+            } else if (!plot_redrawing && deltaY < -0.1) {
                 changeGranularity(-1);
 
-            } else if (deltaX > 0) {
+            } else if (deltaX != 0) {
+                var frame_rate = o.pan.frameRate;
+                if (plot_redrawing || !frame_rate) {
+                    return false;
+                }
 
-            } else if (deltaX < 0) {
-
+                plot_redrawing = true;
+                setTimeout(function () {
+                    plot.pan({ left: -deltaX * 40, top: 0 });
+                    plot_redrawing = false;
+                }, 1 / frame_rate * 1000);
             }
 
             return false;
@@ -674,7 +710,7 @@
             plot.getPlaceholder().bind('plotselected', onPlotSelected);
             plot.getPlaceholder().bind('plotpan', onPan);
             plot.getPlaceholder().bind('mousewheel', onScroll);
-            fetchData(plot);
+            update();
         }
 
         function shutdown(plot, eventHolder) {
