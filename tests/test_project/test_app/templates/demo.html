@@ -84,28 +84,28 @@
                 });
             }
 
-            $('#addmetric').click(function () {
+            $('#addmetric').click(function (event) {
                 var plots = $('#placeholder').children();
                 $(plots[plots.length - 1]).datastream({
                     'add_metric': $('#selectmetric').val()
                 });
             });
 
-            $('#addplot').click(function () {
+            $('#addplot').click(function (event) {
                 $('#placeholder').datastream({
                     'to': to,
                     'metrics': [ $('#selectmetric').val() ]
                 });
             });
 
-            $('#addmetric_alt').click(function () {
+            $('#addmetric_alt').click(function (event) {
                 var plots = $('#placeholder_alt').children();
                 $(plots[plots.length - 1]).datastream({
                     'add_metric': $('#selectmetric_alt').val()
                 });
             });
 
-            $('#addplot_alt').click(function () {
+            $('#addplot_alt').click(function (event) {
                 $('#placeholder_alt').datastream({
                     'from': from,
                     'to': to,
