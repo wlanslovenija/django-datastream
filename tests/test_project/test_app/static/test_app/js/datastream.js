@@ -278,16 +278,18 @@
                 var from = interval[0],
                     to = interval[1];
 
-                var get_url = $.datastream.defaults.url + metric_id +
-                    '/?g=' + granularity +
-                    '&s=' + Math.floor(from / 1000) +
-                    '&e=' + Math.floor(to / 1000) +
-                    '&d=m';
+                var get_url = $.datastream.defaults.url + metric_id,
+                    params = {
+                        'g': granularity,
+                        's': Math.floor(from / 1000).toString(),
+                        'e': Math.floor(to / 1000).toString(),
+                        'd': 'm'
+                    };
 
                 console.debug('GET ' + get_url);
 
                 query_in_progress = true;
-                $.getJSON(get_url,
+                $.getJSON(get_url, params,
                     function (data) {
                         var t, v, j, k, p_f, p_t, first, last,
                             points = [],
@@ -312,7 +314,8 @@
                             return;
                         }
 
-                        // format data points
+                        // format data points; we use for because it runs faster
+                        // than each and we might have thousands of points here
                         for (j = 0; j < data.datapoints.length; j += 1) {
                             t = data.datapoints[j].t;
                             v = data.datapoints[j].v;
@@ -601,6 +604,8 @@
                 pos.y < axes.yaxis.min || pos.y > axes.yaxis.max)
                 return;
 
+            // we use for because it runs faster than each and we might have
+            // thousands of points here
             for (i = 0; i < dataset.length; ++i) {
                 var series = dataset[i];
 
@@ -608,7 +613,8 @@
                     return;
                 }
 
-                // find the nearest points, x-wise
+                // find the nearest points, x-wise; we use for because it runs
+                // faster than each and we might have thousands of points here
                 for (j = 0; j < series.data.length; ++j)
                     if (series.data[j][0] > pos.x)
                         break;
