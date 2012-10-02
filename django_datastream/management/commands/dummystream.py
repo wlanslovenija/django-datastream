@@ -18,7 +18,7 @@ class Command(base.BaseCommand):
                              help="Interval between inserts of dummy datapoints (default: every 5 seconds)."),
         optparse.make_option('--types', '-t', action='store', type='string', dest='types',
                              help="Metric types given as comma-separated values of int, float, or enum (default: empty string). Range can be specified in brackets."),
-        optparse.make_option('--clear', action='store_true', dest='clear',
+        optparse.make_option('--flush', action='store_true', dest='flush',
                              help="Remove all data stream entries from the database."),
         optparse.make_option('--demo', action='store_true', dest='demo',
                              help="Build demo datastream."),
@@ -33,18 +33,20 @@ class Command(base.BaseCommand):
         interval = options.get('interval')
         nmetrics = options.get('nmetrics')
         types = options.get('types')
-        clear = options.get('clear')
+        flush = options.get('flush')
         demo = options.get('demo')
         span = options.get('span')
 
-        if nmetrics is None and types is None and not demo and clear:
+        if nmetrics is None and types is None and not demo and flush:
             datastream.remove_data()
             return
-        elif clear:
-            raise base.CommandError("Do you really want to remove datastream data from the database? Use only clear parameter.")
+        elif flush:
+            raise base.CommandError("Do you really want to remove datastream data from the database? Use only --flush parameter.")
 
-        if nmetrics is None and types is None and not clear and demo:
+        if nmetrics is None and types is None and not flush and demo:
             types = 'int(0,10),float(-2,2),float(0,100)'
+            if span == '':
+                span = '2d'
         else:
             raise base.CommandError("The demo is not supported with other parameters.")
 
@@ -54,12 +56,13 @@ class Command(base.BaseCommand):
             span = span[0]
             for val, key in (('days', 'd'), ('hours', 'h')):
                 if span[-1] == key:
-                    try:
-                        t = datetime.datetime.now()
-                        f = t - datetime.timedelta(**{val: int(span[:-1])})
+                    #try:
+                        t = datetime.datetime.utcnow()
+                        last_timestamp = datastream.last_timestamp().replace(tzinfo=None)
+                        f = max(t - datetime.timedelta(**{val: int(span[:-1])}), last_timestamp + datetime.timedelta(seconds=interval))
                         break
-                    except:
-                        raise base.CommandError("Timespan must be an integer.")
+                    #except:
+                    #    raise base.CommandError("Timespan must be an integer.")
             else:
                 raise base.CommandError("Unknown time span unit %s." % span[-1])
 
@@ -119,7 +122,6 @@ class Command(base.BaseCommand):
                 self.stdout.write("Downsampling...\n")
 
             datastream.downsample_metrics()
-            return
 
         while True:
             for metric_id, type in metrics:
