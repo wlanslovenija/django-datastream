@@ -215,7 +215,7 @@
                 intervals = intervals.concat(add);
 
                 // if requested data is in local data
-                if (intervals.length === 0) {
+                if (!intervals.length) {
                     return false;
                 }
             });
@@ -242,7 +242,7 @@
                 return i;
             }
 
-            if (!collection || !$.isArray(collection) || collection.length === 0) {
+            if (!collection || !$.isArray(collection) || !collection.length) {
                 throw new Error('The collection should never be null or empty here, ever! Something is very, very wrong.');
             }
 
@@ -310,7 +310,7 @@
                             );
                         }
 
-                        if (!data.datapoints) {
+                        if (!data.datapoints.length) {
                             return;
                         }
 
@@ -477,7 +477,7 @@
                 xaxes_options = plot.getAxes().xaxis.options;
 
             $.each(plot.getData(), function(key, val) {
-                if (val.data.length !== 0) {
+                if (val.data.length) {
                     if (val.label === data.label) {
                         new_data.push(data);
                         new_metric = false;
@@ -557,7 +557,7 @@
         }
 
         function zoomOut() {
-            if (zoom_stack.length < 1) {
+            if (!zoom_stack.length) {
                 return;
             }
 
@@ -609,7 +609,7 @@
             for (i = 0; i < dataset.length; ++i) {
                 var series = dataset[i];
 
-                if (series.data.length < 1) {
+                if (!series.data.length) {
                     return;
                 }
 
