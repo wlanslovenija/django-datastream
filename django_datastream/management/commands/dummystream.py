@@ -107,7 +107,8 @@ class Command(base.BaseCommand):
 
         if not (f is None or t is None):
             if verbose > 1:
-                self.stdout.write("Inserting %d values...\n" % ((t - f).total_seconds() // interval * len(metrics)))
+                td = t - f
+                self.stdout.write("Inserting %d values...\n" % ((td.seconds + td.days * 24 * 3600) // interval * len(metrics)))
 
             while f <= t:
                 for metric_id, type in metrics:
