@@ -70,8 +70,8 @@ Datastream server
 To serve datastreams production-grade HTTP server is bundled in. It is scalable and non-blocking, based on
 `Tornado webserver`_. It supports thousands of simultaneous standing connections waiting for new datapoints.
 Along with serving datastream API requests it can be also used as a replacement for Django's `runserver
-management command`_ (but it does not `autoserve static files`_, you have to `collect static files`_ beforehand).
-You run it in a similar way with::
+management command`_ (but it does not `autoserve static files`_, you have to `collect static files`_
+beforehand, and does not autoreload on code changes). You run it in a similar way with::
 
     ./manage.py rundataserver
 
