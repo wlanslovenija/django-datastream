@@ -26,7 +26,7 @@ class Command(base.BaseCommand):
                              help="Time span <span> time span until now (i.e. 7d) or <from to> format yyyy-mm-ddThh:mm:ss (i.e. 2007-03-04T12:00:00 2007-04-10T12:00:00)"),
         )
 
-    help = "Regularly inserts dummy datapoints into metrics."
+    help = "Regularly append dummy datapoints to metrics."
 
     def handle(self, *args, **options):
         verbose = int(options.get('verbosity'))
@@ -58,7 +58,7 @@ class Command(base.BaseCommand):
                 if span[-1] == key:
                     #try:
                         t = datetime.datetime.utcnow()
-                        last_timestamp = datastream.last_timestamp().replace(tzinfo=None)
+                        last_timestamp = datastream._last_timestamp().replace(tzinfo=None)
                         f = max(t - datetime.timedelta(**{val: int(span[:-1])}), last_timestamp + datetime.timedelta(seconds=interval))
                         break
                     #except:
@@ -115,7 +115,7 @@ class Command(base.BaseCommand):
                     type, domain = type
                     type, rnd, rng = typedef[type]
                     value = rnd(*map(type, (rng if domain is '' else domain).split(',')))
-                    datastream.insert(metric_id, value, f)
+                    datastream.append(metric_id, value, f)
 
                 f += datetime.timedelta(seconds=interval)
 
@@ -131,8 +131,8 @@ class Command(base.BaseCommand):
                 value = rnd(*map(type, (rng if domain is '' else domain).split(',')))
 
                 if verbose > 1:
-                    self.stdout.write("Inserting value '%s' into metric '%s'.\n" % (value, metric_id))
-                datastream.insert(metric_id, value)
+                    self.stdout.write("Appending value '%s' to metric '%s'.\n" % (value, metric_id))
+                datastream.append(metric_id, value)
 
             datastream.downsample_metrics()
             time.sleep(interval)
