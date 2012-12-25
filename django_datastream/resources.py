@@ -26,6 +26,7 @@ class MetricResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
+        serializer = serializers.DatastreamSerializer()
 
     # TODO: Set help text
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
@@ -74,17 +75,17 @@ class MetricResource(resources.Resource):
         return data
 
     def _get_query_params(self, request):
-        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].name.lower()[0])
+        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].key)
         for g in datastream.Granularity.values:
-            if granularity == g.name.lower()[0]:
+            if granularity == g.key:
                 granularity = g
                 break
         else:
             raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
-        start = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_START, 0))
+        start = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_START, 0)))
         if QUERY_END in request.GET:
-            end = datetime.datetime.utcfromtimestamp(request.GET.get(QUERY_END))
+            end = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_END)))
         else:
             end = None
 
@@ -123,8 +124,10 @@ class MetricResource(resources.Resource):
         }
 
     def obj_get(self, request=None, **kwargs):
-        # TODO: Handle 404
-        metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
+        try:
+            metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
+        except datastream_exceptions.MetricNotFound:
+            raise exceptions.NotFound("Couldn't find a metric with id='%s'." % kwargs['pk'])
 
         params = self._get_query_params(request)
 
@@ -144,7 +147,7 @@ class MetricResource(resources.Resource):
 
     def override_urls(self):
         return [
-            urls.url(r"^%s/(?P<pk>\w[\w/-]*)/datastream%s$" % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name="datastream"),
+            urls.url(r'^%s/(?P<pk>\w[\w/-]*)/datastream%s$' % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name='datastream'),
         ]
 
     def datastream_view(self, request, api_name, pk):
