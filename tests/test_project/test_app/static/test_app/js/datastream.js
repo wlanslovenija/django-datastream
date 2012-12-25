@@ -5,7 +5,7 @@
         cached_data = {},
         current_plot_id = 0,
         datastream_location = '',
-        restful_api_location = 'api/v1/metric/',
+        restful_api_location = 'api/v1/stream/',
         query_in_progress = false,
         plot_redrawing = false;
 
@@ -47,27 +47,27 @@
     function Datastream(placeholder, options) {
 
         var self = this,
-            add_metric = null;
+            add_stream = null;
 
-        if (options && options.metrics) {
-            options = $.extend(options, { 'datastream': {'metrics': options.metrics }});
-            delete options.metrics;
+        if (options && options.streams) {
+            options = $.extend(options, { 'datastream': {'streams': options.streams }});
+            delete options.streams;
         }
 
-        if (options && options.add_metric) {
-            add_metric = options.add_metric;
-            delete options.add_metric;
+        if (options && options.add_stream) {
+            add_stream = options.add_stream;
+            delete options.add_stream;
         }
 
         self.options = $.extend({}, $.datastream.defaults, options);
         self.placeholder = placeholder;
 
-        if (placeholder.children('canvas') && add_metric) {
+        if (placeholder.children('canvas') && add_stream) {
 
-            // if selected existig canvas, add metric
+            // if selected existig canvas, add stream
             var plot_id = placeholder.prop('id');
-            self.options.datastream.metrics.push(add_metric);
-            plots[plot_id].addMetric(add_metric);
+            self.options.datastream.streams.push(add_stream);
+            plots[plot_id].addStream(add_stream);
 
         } else {
 
@@ -91,14 +91,14 @@
         });
     };
 
-    $.datastream.metricList = function (callback) {
+    $.datastream.streamList = function (callback) {
         $.getJSON($.datastream.defaults.url, function (data, status) {
             callback(data.objects);
         });
     };
 
-    $.datastream.metricName = function (metric) {
-        var name_tag = $.grep(metric.tags, function (val, i) { return val.name; });
+    $.datastream.streamName = function (stream) {
+        var name_tag = $.grep(stream.tags, function (val, i) { return val.name; });
         return (name_tag.length) ? name_tag[0].name : undefined;
     };
 
@@ -119,7 +119,7 @@
         'from': null,
         'to': null,
         'datastream': {
-            'metrics': []
+            'streams': []
         },
         'selection': {
             'mode': 'x',
@@ -164,19 +164,19 @@
         'to': null
     };
 
-    function getMetricData(metric_id, granularity, from, to, callback) {
+    function getStreamData(stream_id, granularity, from, to, callback) {
         if (query_in_progress) {
-            setTimeout(function () { getMetricData(metric_id, granularity, from, to, callback); }, 40);
+            setTimeout(function () { getStreamData(stream_id, granularity, from, to, callback); }, 40);
             return;
         }
 
-        if (!cached_data[metric_id]) {
-            cached_data[metric_id] = {};
+        if (!cached_data[stream_id]) {
+            cached_data[stream_id] = {};
         }
 
         var intervals = [],
-            collection = (cached_data[metric_id][granularity]) ?
-                cached_data[metric_id][granularity] : null;
+            collection = (cached_data[stream_id][granularity]) ?
+                cached_data[stream_id][granularity] : null;
 
         if (from >= to) {
             throw new Error("Argument Error: argument from must be less than argument to.");
@@ -225,7 +225,7 @@
             // return some data (even if not all is received yet)
             var data = {},
                 points = [],
-                collection = cached_data[metric_id][granularity];
+                collection = cached_data[stream_id][granularity];
 
             function bisectPoints(val, arr) {
                 var h, i = 0,
@@ -278,7 +278,7 @@
                 var from = interval[0],
                     to = interval[1];
 
-                var get_url = $.datastream.defaults.url + metric_id,
+                var get_url = $.datastream.defaults.url + stream_id,
                     params = {
                         'g': granularity,
                         's': Math.floor(from / 1000).toString(),
@@ -294,15 +294,15 @@
                         var t, v, j, k, p_f, p_t, first, last,
                             points = [],
                             processed_data = {},
-                            label = $.datastream.metricName(data) + ' = ?',
+                            label = $.datastream.streamName(data) + ' = ?',
                             new_interval = true,
                             update = true,
-                            collection = (cached_data[metric_id][granularity]) ?
-                                cached_data[metric_id][granularity] : null;
+                            collection = (cached_data[stream_id][granularity]) ?
+                                cached_data[stream_id][granularity] : null;
 
                         if (debug) {
                             debug.find('#debugTable tr:last').after($('<tr>')
-                                .append($('<td>').html($.datastream.metricName(data)))
+                                .append($('<td>').html($.datastream.streamName(data)))
                                 .append($('<td>').html(granularity))
                                 .append($('<td>').html(toDebugTime(from)))
                                 .append($('<td>').html(toDebugTime(to)))
@@ -347,8 +347,8 @@
                         }
 
                         // add to cache
-                        if (!cached_data[metric_id][granularity]) {
-                            cached_data[metric_id][granularity] = [];
+                        if (!cached_data[stream_id][granularity]) {
+                            cached_data[stream_id][granularity] = [];
                         } else {
                             $.each(collection, function(j, c) {
                                 k = 0;
@@ -404,7 +404,7 @@
                                 processed_data.query_to = to;
                                 processed_data.points_from = p_f;
                                 processed_data.points_to = p_t;
-                                cached_data[metric_id][granularity].push(processed_data);
+                                cached_data[stream_id][granularity].push(processed_data);
                             }
 
                             selectData();
@@ -420,7 +420,7 @@
 
     function init(plot) {
         var enabled = false,
-            metrics = [],
+            streams = [],
             zoom_stack = [],
             granularity = [
                 {'name': "Seconds",    'key': 's',   'span': 1},
@@ -433,14 +433,14 @@
             ],
             mode = 0;
 
-        plot.metrics = function() {
-            return metrics;
+        plot.streams = function() {
+            return streams;
         };
 
         function processOptions(plot, s) {
             if (s.datastream) {
                 enabled = true;
-                metrics = s.datastream.metrics;
+                streams = s.datastream.streams;
 
                 if (s.to === null) {
                     s.to = new Date().getTime();
@@ -471,7 +471,7 @@
         }
 
         function updateData(data) {
-            var new_metric = true,
+            var new_stream = true,
                 new_data = [],
                 o = plot.getOptions(),
                 xaxes_options = plot.getAxes().xaxis.options;
@@ -480,7 +480,7 @@
                 if (val.data.length) {
                     if (val.label === data.label) {
                         new_data.push(data);
-                        new_metric = false;
+                        new_stream = false;
                     } else {
                         new_data.push({'data': val.data, 'label': val.label});
                     }
@@ -488,7 +488,7 @@
                 }
             });
 
-            if (new_metric) {
+            if (new_stream) {
                 new_data.push(data);
             }
 
@@ -499,7 +499,7 @@
             plot.draw();
         }
 
-        plot.addMetric = function(metric) {
+        plot.addStream = function(stream) {
             var i,
                 o = plot.getOptions(),
                 gr = granularity[o.granularity].key,
@@ -516,19 +516,19 @@
                 gr = granularity[i].key;
             }
 
-            if ($.inArray(metric, o.datastream.metrics) < 0) {
-                o.datastream.metrics.push(metric);
+            if ($.inArray(stream, o.datastream.streams) < 0) {
+                o.datastream.streams.push(stream);
             }
 
-            getMetricData(metric, gr, o.from - Math.floor(span / 2),
+            getStreamData(stream, gr, o.from - Math.floor(span / 2),
                 o.to + Math.floor(span / 2), function (data) {
                 updateData(data);
             });
         };
 
         function update() {
-            $.each(metrics, function(key, val) {
-                plot.addMetric(val);
+            $.each(streams, function(key, val) {
+                plot.addStream(val);
             });
         }
 

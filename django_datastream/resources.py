@@ -22,7 +22,7 @@ QUERY_END = 'e'
 QUERY_VALUE_DOWNSAMPLERS = 'v'
 QUERY_TIME_DOWNSAMPLERS = 't'
 
-class MetricResource(resources.Resource):
+class StreamResource(resources.Resource):
     class Meta:
         allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
@@ -55,8 +55,8 @@ class MetricResource(resources.Resource):
         return self._build_reverse_url('api_dispatch_detail', kwargs=kwargs)
 
     def get_object_list(self, request):
-        # TODO: Provide users a way to query metrics by tags
-        return [datastream.Metric(metric) for metric in datastream.find_metrics()]
+        # TODO: Provide users a way to query streams by tags
+        return [datastream.Stream(stream) for stream in datastream.find_streams()]
 
     def apply_sorting(self, obj_list, options=None):
         return obj_list
@@ -125,15 +125,15 @@ class MetricResource(resources.Resource):
 
     def obj_get(self, request=None, **kwargs):
         try:
-            metric = datastream.Metric(datastream.get_tags(kwargs['pk']))
-        except datastream_exceptions.MetricNotFound:
-            raise exceptions.NotFound("Couldn't find a metric with id='%s'." % kwargs['pk'])
+            stream = datastream.Stream(datastream.get_tags(kwargs['pk']))
+        except datastream_exceptions.StreamNotFound:
+            raise exceptions.NotFound("Couldn't find a stream with id='%s'." % kwargs['pk'])
 
         params = self._get_query_params(request)
 
-        metric.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['value_downsamplers'], params['time_downsamplers'])
+        stream.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['value_downsamplers'], params['time_downsamplers'])
 
-        return metric
+        return stream
 
     def dehydrate_datastream_uri(self, bundle):
         kwargs = {

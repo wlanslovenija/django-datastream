@@ -29,7 +29,7 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
 
         backend = cls(**getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
 
-    def callback(metric_id, granularity, datapoint):
-        signals.new_datapoint.send(sender=datastream, metric_id=metric_id, granularity=granularity, datapoint=datapoint)
+    def callback(stream_id, granularity, datapoint):
+        signals.new_datapoint.send(sender=datastream, stream_id=stream_id, granularity=granularity, datapoint=datapoint)
 
     datastream = Datastream(backend, callback)

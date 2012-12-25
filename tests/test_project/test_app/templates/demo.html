@@ -22,8 +22,8 @@
 
         <p>Datastream plot has 2 modes:</p>
         <ul>
-            <li><b>Fixed metric</b> (default mode): in this mode each pixel
-                represents one metric value.</li>
+            <li><b>Fixed stream</b> (default mode): in this mode each pixel
+                represents one stream value.</li>
             <li><b>Fixed interval</b> (alternative mode): when the user selects
                 an interval the best granularity is computed based on 2
                 guidelines: show as much information as possible, do not
@@ -41,8 +41,8 @@
         <h2>Example 1: one value one pixel</h2>
         <p>Default mode displays one value per pixel. Activated by default
            or on scroll up / down.</p>
-        <p><select id='selectmetric' width='200px'></select>
-           <button id='addmetric'>add metric</button>
+        <p><select id='selectstream' width='200px'></select>
+           <button id='addstream'>add stream</button>
            <button id='addplot'>add plot</button>
            <span id='step'></span></p>
         <div id='placeholder'></div>
@@ -51,8 +51,8 @@
             in a fixed time interval. The mode is activated if you
             specify the <i>from</i> setting or when you zoom to an interval
             (right-click + drag).</p>
-        <p><select id='selectmetric_alt' width='200px'></select>
-           <button id='addmetric_alt'>add metric</button>
+        <p><select id='selectstream_alt' width='200px'></select>
+           <button id='addstream_alt'>add stream</button>
            <button id='addplot_alt'>add plot</button>
            <span id='step_alt'></span></p>
         <div id='placeholder_alt'></div>
@@ -61,7 +61,7 @@
                 <h3>DEBUG INFO</h3>
                 <table id="debugTable">
                     <tr>
-                        <td>Metric</td>
+                        <td>Stream</td>
                         <td>Granularity</td>
                         <td>From</td>
                         <td>To</td>
@@ -84,26 +84,26 @@
                 });
             }
 
-            $('#addmetric').click(function (event) {
+            $('#addstream').click(function (event) {
                 var plots = $('#placeholder')
                         .children(':last')
                         .datastream({
-                            'add_metric': $('#selectmetric').val()
+                            'add_stream': $('#selectstream').val()
                         });
             });
 
             $('#addplot').click(function (event) {
                 $('#placeholder').datastream({
                     'to': to,
-                    'metrics': [ $('#selectmetric').val() ]
+                    'streams': [ $('#selectstream').val() ]
                 });
             });
 
-            $('#addmetric_alt').click(function (event) {
+            $('#addstream_alt').click(function (event) {
                 var plots = $('#placeholder_alt')
                         .children(':last')
                         .datastream({
-                            'add_metric': $('#selectmetric_alt').val()
+                            'add_stream': $('#selectstream_alt').val()
                         });
             });
 
@@ -111,34 +111,34 @@
                 $('#placeholder_alt').datastream({
                     'from': from,
                     'to': to,
-                    'metrics': [ $('#selectmetric_alt').val() ]
+                    'streams': [ $('#selectstream_alt').val() ]
                 });
             });
 
-            $.datastream.metricList(function (metrics) {
-                $('#selectmetric option, #selectmetric_alt option').remove();
+            $.datastream.streamList(function (streams) {
+                $('#selectstream option, #selectstream_alt option').remove();
 
-                $.each(metrics, function (i, metric) {
-                    $('#selectmetric')
-                        .append($('<option>', { 'value': metric.id })
-                        .text($.datastream.metricName(metric)));
+                $.each(streams, function (i, stream) {
+                    $('#selectstream')
+                        .append($('<option>', { 'value': stream.id })
+                        .text($.datastream.streamName(stream)));
                 });
 
-                $.each(metrics, function (i, metric) {
-                    $('#selectmetric_alt')
-                            .append($('<option>', { 'value': metric.id })
-                            .text($.datastream.metricName(metric)));
+                $.each(streams, function (i, stream) {
+                    $('#selectstream_alt')
+                            .append($('<option>', { 'value': stream.id })
+                            .text($.datastream.streamName(stream)));
                 });
 
                 $('#placeholder').datastream({
                     'to': to,
-                    'metrics': [ $('#selectmetric').val() ]
+                    'streams': [ $('#selectstream').val() ]
                 });
 
                 $('#placeholder_alt').datastream({
                     'from': from,
                     'to': to,
-                    'metrics': [ $('#selectmetric_alt').val() ]
+                    'streams': [ $('#selectstream_alt').val() ]
                 });
             });
         });

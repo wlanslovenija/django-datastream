@@ -7,46 +7,46 @@ Usage
 
 API resembles RESTful interface, allowing for example to specify response data format (JSON, XML, ...).
 
-List of all metrics can be obtained at::
+List of all streams can be obtained at::
 
-    /api/v1/metric/
+    /api/v1/stream/
 
-Accessing particular metric is through its ID, for example::
+Accessing particular stream is through its ID, for example::
 
-    /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/
 
-API is read-only and supports the following HTTP commands for each metric:
+API is read-only and supports the following HTTP commands for each stream:
 
 * ``GET`` -- returns data
 * ``WAIT`` -- waits for any data to be available and returns it
 
 ``GET`` and ``WAIT`` can be seen as non-blocking and blocking counterparts of each other, respectively.
-Otherwise they behave the same. They return a list of datapoints stored in a metric. Response contains
+Otherwise they behave the same. They return a list of datapoints stored in a stream. Response contains
 some additional metadata to allow pagination and automatic interface exploration/discovery easier.
 
-Because of potentially long metrices, additional parameters can be specified to limit the interval of
+Because of potentially long streames, additional parameters can be specified to limit the interval of
 datapoints through query string parameters (default is all datapoints)::
 
-    /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/?s=<start timestamp>&e=<end timestamp>
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?s=<start timestamp>&e=<end timestamp>
 
 Timestamps are in seconds since `UNIX epoch`_. If start or end timestamp is missing, this means all
-datapoints from the beginning of the metric, or all datapoints to the end of the metric, respectively.
-For real-time metrics the latter in practice means all datapoints until the current time. Start and end
+datapoints from the beginning of the stream, or all datapoints to the end of the stream, respectively.
+For real-time streams the latter in practice means all datapoints until the current time. Start and end
 timestamps are inclusive.
 
 Additionally, paging query string parameters can be used::
 
-    /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/?l=<page limit>&o=<offset>
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?l=<page limit>&o=<offset>
 
 Page limit limits absolute number of datapoints returned in this response and offset allows offsetting the datapoints,
 positive from beginning, negative from the end. Metadata in the response contains data on how many datapoints would
 there be otherwise in the response and URIs to previous and next page. Setting page limit to 0 allows simple
 querying of the URI without retrieving any data. Default page limit is 100 datapoints.
 
-``WAIT`` waits until any datapoint in metric (possibly limited by query string parameters) is available before
+``WAIT`` waits until any datapoint in stream (possibly limited by query string parameters) is available before
 returning. If data is already available, it returns immediately, behaving the same as ``GET``. For example, after
-reading all datapoints of a metric, client can request ``WAIT`` request with ``s`` parameter set to the timestamp of the
-last datapoint to wait until new datapoint is added to the metric.
+reading all datapoints of a stream, client can request ``WAIT`` request with ``s`` parameter set to the timestamp of the
+last datapoint to wait until new datapoint is added to the stream.
 
 Together with some metadata datapoints are returned as a list of ``t`` (time) and ``v`` (value) dictionaries.
 Which data is returned can be configured with query parameters:
@@ -60,7 +60,7 @@ Which data is returned can be configured with query parameters:
 
 For example, to return minutes granularity with only average, min, and max values::
 
-    /api/v1/metric/caa88489-fa0f-4458-bc0b-0d52c7a31715/?g=m&d=m,l&d=u
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?g=m&d=m,l&d=u
 
 .. _UNIX epoch: http://en.wikipedia.org/wiki/Unix_time
 
@@ -89,7 +89,7 @@ For a demo web page, start mongo database, go to the tests folder and run::
 
     ./manage.py dummydatastream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
 
-This runs a deamon that creates test metric data. Three data types are supported
+This runs a deamon that creates test stream data. Three data types are supported
 (int, float and enum). Rfange can be specified within brackets for int and float and
 a list of values for the enum data type.
 
