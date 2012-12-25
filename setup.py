@@ -41,6 +41,7 @@ if __name__ == '__main__':
             'django-tastypie>=0.9.11',
             'django-pushserver==0.1.9',
             'ujson>=1.19',
+            'pytz>=2012h',
         ],
         test_suite = 'tests.runtests.runtests',
     )

@@ -2,10 +2,9 @@ from __future__ import absolute_import
 
 import datetime
 
-from django.conf import urls
-from django.core import urlresolvers
+import pytz
 
-from tastypie import bundle, exceptions, fields, resources, utils
+from tastypie import bundle, exceptions, fields, resources
 
 from . import datastream, serializers
 from datastream import exceptions as datastream_exceptions
@@ -16,9 +15,14 @@ class InvalidGranularity(exceptions.BadRequest):
 class InvalidDownsampler(exceptions.BadRequest):
     pass
 
+class InvalidRange(exceptions.BadRequest):
+    pass
+
 QUERY_GRANULARITY = 'g'
 QUERY_START = 's'
 QUERY_END = 'e'
+QUERY_START_EXCLUSIVE = 'sx'
+QUERY_END_EXCLUSIVE = 'ex'
 QUERY_VALUE_DOWNSAMPLERS = 'v'
 QUERY_TIME_DOWNSAMPLERS = 't'
 
@@ -36,8 +40,6 @@ class StreamResource(resources.Resource):
     tags = fields.ListField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
     datapoints = fields.ListField('datapoints', null=True, blank=False, readonly=True, help_text=None)
-
-    datastream_uri = fields.CharField(null=False, blank=False, readonly=True, help_text=None)
 
     def get_resource_uri(self, bundle_or_obj):
         kwargs = {
@@ -83,11 +85,34 @@ class StreamResource(resources.Resource):
         else:
             raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
-        start = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_START, 0)))
+        if QUERY_START in request.GET:
+            start = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_START)), pytz.utc)
+        else:
+            start = None
+
         if QUERY_END in request.GET:
-            end = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_END)))
+            end = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_END)), pytz.utc)
         else:
             end = None
+
+        if QUERY_START_EXCLUSIVE in request.GET:
+            start_exclusive = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_START_EXCLUSIVE)), pytz.utc)
+        else:
+            start_exclusive = None
+
+        if QUERY_END_EXCLUSIVE in request.GET:
+            end_exclusive = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_END_EXCLUSIVE)), pytz.utc)
+        else:
+            end_exclusive = None
+
+        if QUERY_START and QUERY_START_EXCLUSIVE:
+            raise InvalidRange("Only one time range start can be specified.")
+
+        if QUERY_END and QUERY_END_EXCLUSIVE:
+            raise InvalidRange("Only one time range end can be specified.")
+
+        if not QUERY_START and not QUERY_START_EXCLUSIVE:
+            start = datetime.datetime.min
 
         value_downsamplers = []
         for downsampler in request.GET.getlist(QUERY_VALUE_DOWNSAMPLERS, []):
@@ -119,6 +144,8 @@ class StreamResource(resources.Resource):
             'granularity': granularity,
             'start': start,
             'end': end,
+            'start_exclusive': start_exclusive,
+            'end_exclusive': end_exclusive,
             'value_downsamplers': value_downsamplers,
             'time_downsamplers': time_downsamplers,
         }
@@ -131,29 +158,19 @@ class StreamResource(resources.Resource):
 
         params = self._get_query_params(request)
 
-        stream.datapoints = datastream.get_data(kwargs['pk'], params['granularity'], params['start'], params['end'], params['value_downsamplers'], params['time_downsamplers'])
+        # TODO: Support offset and pagination
+        stream.datapoints = datastream.get_data(
+            stream_id=kwargs['pk'],
+            granularity=params['granularity'],
+            start=params['start'],
+            end=params['end'],
+            start_exclusive=params['start_exclusive'],
+            end_exclusive=params['end_exclusive'],
+            value_downsamplers=params['value_downsamplers'],
+            time_downsamplers=params['time_downsamplers'],
+        )
 
         return stream
-
-    def dehydrate_datastream_uri(self, bundle):
-        kwargs = {
-            'pk': bundle.obj.id,
-        }
-
-        if self._meta.api_name is not None:
-            kwargs['api_name'] = self._meta.api_name
-
-        return urlresolvers.reverse('datastream', kwargs=kwargs)
-
-    def override_urls(self):
-        return [
-            urls.url(r'^%s/(?P<pk>\w[\w/-]*)/datastream%s$' % (self._meta.resource_name, utils.trailing_slash()), self.wrap_view('datastream_view'), name='datastream'),
-        ]
-
-    def datastream_view(self, request, api_name, pk):
-        granularity = self._get_query_params(request)['granularity']
-
-        # TODO: Return redirect to channel
 
     def obj_create(self, bundle, request=None, **kwargs):
         raise NotImplementedError
