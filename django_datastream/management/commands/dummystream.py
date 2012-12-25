@@ -3,6 +3,8 @@ import datetime, optparse, random, re, time
 from django.core.management import base
 from django.contrib.webdesign import lorem_ipsum
 
+import pytz
+
 from django_datastream import datastream
 
 re_float = r'[-+]?[0-9]*\.?[0-9]+'
@@ -10,23 +12,66 @@ re_int = r'[-+]?\d+'
 check_types = re.compile(r'^(int(\(%s,%s\))?|float(\(%s,%s\))?|enum(\((\w|,)+\))?|,)*$' % (re_int, re_int, re_float, re_float))
 split_types = re.compile(r'(int|float|enum)(?:\(([^)]+)\))?')
 
+DEMO_TYPE = 'int(0,10),float(-2,2),float(0,100)'
+DEMO_SPAN = '2d'
+
+DEFAULT_NSTREAMS = 3
+DEFAULT_INTERVAL = 5 # seconds
+
+TYPES = {
+    'int': (int, random.randint, '0,100'),
+    'float': (float, random.uniform, '0,100'),
+    'enum': (str, lambda *x: random.choice(x), 'a,b,c'),
+}
+
 class Command(base.BaseCommand):
     option_list = base.BaseCommand.option_list + (
-        optparse.make_option('--streams', '-n', action='store', type='int', dest='nstreams',
-                             help="Number of dummy streams to be created (default: 3)."),
-        optparse.make_option('--interval', '-i', action='store', type='int', dest='interval', default=5,
-                             help="Interval between inserts of dummy datapoints (default: every 5 seconds)."),
-        optparse.make_option('--types', '-t', action='store', type='string', dest='types',
-                             help="Stream types given as comma-separated values of int, float, or enum (default: empty string). Range can be specified in brackets."),
-        optparse.make_option('--flush', action='store_true', dest='flush',
-                             help="Remove all data stream entries from the database."),
-        optparse.make_option('--demo', action='store_true', dest='demo',
-                             help="Build demo datastream."),
-        optparse.make_option('--span', '-s', action='store', type='string', dest='span', default='',
-                             help="Time span <span> time span until now (i.e. 7d) or <from to> format yyyy-mm-ddThh:mm:ss (i.e. 2007-03-04T12:00:00 2007-04-10T12:00:00)"),
-        )
+        optparse.make_option(
+            '--streams', '-n', action='store', type='int', dest='nstreams',
+            help="Number of dummy streams to be created (default: %s)." % DEFAULT_NSTREAMS,
+        ),
+        optparse.make_option(
+            '--interval', '-i', action='store', type='int', dest='interval', default=DEFAULT_INTERVAL,
+            help="Interval between inserts of dummy datapoints (default: every %s seconds)." % DEFAULT_INTERVAL,
+        ),
+        optparse.make_option(
+            '--types', '-t', action='store', type='string', dest='types',
+            help="Stream types given as comma-separated values of 'int', 'float', or 'enum' (default: empty string). Range can be specified in brackets.",
+        ),
+        optparse.make_option(
+            '--flush', action='store_true', dest='flush',
+            help="Remove all datastream data from the database.",
+        ),
+        optparse.make_option(
+            '--demo', action='store_true', dest='demo',
+            help="Build demo datastream (type: %s, span: %s)." % (DEMO_TYPE, DEMO_SPAN),
+        ),
+        optparse.make_option(
+            '--span', '-s', action='store', type='string', dest='span', default='',
+            help="Time span: <span> time span until now (i.e. '7d'), or <from to> format 'yyyy-mm-ddThh:mm:ss' (i.e. '2007-03-04T12:00:00 2007-04-10T12:00:00')",
+        ),
+    )
 
     help = "Regularly append dummy datapoints to streams."
+
+    def last_timestamp(self, streams):
+        timestamp = datetime.datetime.min
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=pytz.utc)
+
+        for stream_id, types in streams:
+            try:
+                t = datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max).next()['t']
+
+                if t.tzinfo is None:
+                    t = t.replace(tzinfo=pytz.utc)
+
+                if t > timestamp:
+                    timestamp = t
+            except StopIteration:
+                continue
+
+        return timestamp
 
     def handle(self, *args, **options):
         verbose = int(options.get('verbosity'))
@@ -38,42 +83,20 @@ class Command(base.BaseCommand):
         span = options.get('span')
 
         if nstreams is None and types is None and not demo and flush:
-            datastream.remove_data()
+            datastream.delete_streams()
             return
         elif flush:
-            raise base.CommandError("Do you really want to remove datastream data from the database? Use only --flush parameter.")
+            raise base.CommandError("Do you really want to remove all datastream data from the database? Use only '--flush' parameter.")
 
         if nstreams is None and types is None and not flush and demo:
-            types = 'int(0,10),float(-2,2),float(0,100)'
+            types = DEMO_TYPE
             if span == '':
-                span = '2d'
-        else:
-            raise base.CommandError("The demo is not supported with other parameters.")
-
-        f = t = None
-        span = span.split(' ')
-        if len(span) == 1:
-            span = span[0]
-            for val, key in (('days', 'd'), ('hours', 'h')):
-                if span[-1] == key:
-                    #try:
-                        t = datetime.datetime.utcnow()
-                        last_timestamp = datastream._last_timestamp().replace(tzinfo=None)
-                        f = max(t - datetime.timedelta(**{val: int(span[:-1])}), last_timestamp + datetime.timedelta(seconds=interval))
-                        break
-                    #except:
-                    #    raise base.CommandError("Timespan must be an integer.")
-            else:
-                raise base.CommandError("Unknown time span unit %s." % span[-1])
-
-        elif len(span) == 2:
-            try:
-                f, t = map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'), span)
-            except ValueError:
-                raise base.CommandError("Use time format like yyyy-mm-ddThh:mm:ss (i.e. 2007-03-04T21:08:12).")
+                span = DEMO_SPAN
+        elif demo:
+            raise base.CommandError("In demo mode other parameters are fixed.")
 
         if nstreams is None and types is None:
-            nstreams = 3
+            nstreams = DEFAULT_NSTREAMS
 
         if types and check_types.match(types):
             types = split_types.findall(types)
@@ -92,47 +115,84 @@ class Command(base.BaseCommand):
             else:
                 downsamplers = []
 
-            stream_id = datastream.ensure_stream(({'name': 'stream_%d' % i},),
-                                                 ('foobar', {'stream_number': i},
-                                                  {'description': lorem_ipsum.paragraph()}),
-                                                 downsamplers, datastream.Granularity.Seconds)
+            stream_id = datastream.ensure_stream(
+                ({'name': 'stream_%d' % i},),
+                (
+                    'foobar',
+                    {'stream_number': i},
+                    {'description': lorem_ipsum.paragraph()},
+                ),
+                downsamplers,
+                datastream.Granularity.Seconds,
+            )
 
-            streams.append((stream_id, types[i] if types is not None else ('int', '')))
+            if types is not None:
+                streams.append((stream_id, types[i]))
+            else:
+                streams.append((stream_id, ('int', '')))
 
-        typedef = {
-            'int': (int, random.randint, '0,100'),
-            'float': (float, random.uniform, '0,100'),
-            'enum': (str, lambda *x: random.choice(x), 'a,b,c'),
-        }
+        span = span.split(' ')
+        if len(span) == 1:
+            span = span[0]
+            for val, key in (('days', 'd'), ('hours', 'h')):
+                if span[-1] == key:
+                    try:
+                        s = int(span[:-1])
+                    except ValueError:
+                        raise base.CommandError("Time span value must be an integer.")
 
-        if not (f is None or t is None):
+                    span_to =  datetime.datetime.now(pytz.utc)
+                    last_timestamp = self.last_timestamp(streams)
+                    span_from = max(
+                        span_to - datetime.timedelta(**{val: s}),
+                        last_timestamp + datetime.timedelta(seconds=interval)
+                    )
+
+                    break
+            else:
+                raise base.CommandError("Unknown time span unit '%s'." % span[-1])
+
+        elif len(span) == 2:
+            try:
+                # TODO: Support also timezone in the datetime format
+                span_from, span_to = map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'), span)
+            except ValueError:
+                raise base.CommandError("Use time format 'yyyy-mm-ddThh:mm:ss' (i.e. '2007-03-04T21:08:12').")
+
+        else:
+            raise base.CommandError("Invalid time span parameter. It should be one or two space-delimited values.")
+
+        if span_from is not None and span_to is not None:
             if verbose > 1:
-                td = t - f
-                self.stdout.write("Inserting %d values...\n" % ((td.seconds + td.days * 24 * 3600) // interval * len(streams)))
+                td = span_to - span_from
+                self.stdout.write("Appending %d values from %s to %s.\n" % (((td.seconds + td.days * 24 * 3600) // interval * len(streams)), span_from, span_to))
 
-            while f <= t:
-                for stream_id, type in streams:
-                    type, domain = type
-                    type, rnd, rng = typedef[type]
-                    value = rnd(*map(type, (rng if domain is '' else domain).split(',')))
-                    datastream.append(stream_id, value, f)
+            while span_from <= span_to:
+                for stream_id, (type, domain) in streams:
+                    type_constructor, random_function, default_domain = TYPES[type]
+                    value = random_function(*map(type_constructor, (domain or default_domain).split(',')))
+                    datastream.append(stream_id, value, span_from)
 
-                f += datetime.timedelta(seconds=interval)
+                span_from += datetime.timedelta(seconds=interval)
 
             if verbose > 1:
-                self.stdout.write("Downsampling...\n")
+                self.stdout.write("Downsampling.\n")
 
-            datastream.downsample_streams()
+            datastream.downsample_streams(until=span_to)
+
+        if verbose > 1:
+            self.stdout.write("Appending real-time value(s) to stream(s) every %s seconds.\n" % interval)
 
         while True:
-            for stream_id, type in streams:
-                type, domain = type
-                type, rnd, rng = typedef[type]
-                value = rnd(*map(type, (rng if domain is '' else domain).split(',')))
+            for stream_id, (type, domain) in streams:
+                type_constructor, random_function, default_domain = TYPES[type]
+                value = random_function(*map(type_constructor, (domain or default_domain).split(',')))
 
                 if verbose > 1:
                     self.stdout.write("Appending value '%s' to stream '%s'.\n" % (value, stream_id))
+
                 datastream.append(stream_id, value)
 
             datastream.downsample_streams()
+
             time.sleep(interval)
