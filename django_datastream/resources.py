@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 
-import datetime
+import datetime, urllib
 
 import pytz
 
-from tastypie import bundle, exceptions, fields, resources
+from tastypie import bundle, exceptions, fields, http, paginator, resources
 
 from . import datastream, serializers
 from datastream import exceptions as datastream_exceptions
@@ -25,12 +25,85 @@ QUERY_START_EXCLUSIVE = 'sx'
 QUERY_END_EXCLUSIVE = 'ex'
 QUERY_VALUE_DOWNSAMPLERS = 'v'
 QUERY_TIME_DOWNSAMPLERS = 't'
+QUERY_REVERSE = 'r'
+
+class DatapointsField(fields.ApiField):
+    """
+    A datapoints field.
+    """
+
+    dehydrated_type = 'datapoints'
+    help_text = "A list of datapoints."
+
+class Paginator(paginator.Paginator):
+    def get_slice(self, limit, offset):
+        if limit == 0:
+            # If zero, return nothing
+            return []
+
+        # Optimization
+        self.objects.batch_size(limit)
+
+        return list(self.objects[offset:offset + limit])
+
+    def _generate_uri(self, limit, offset):
+        if self.resource_uri is None:
+            return None
+
+        request_params = dict([k, v.encode('utf-8')] for k, v in self.request_data.items())
+
+        if 'offset' in request_params:
+            del request_params['offset']
+        if 'limit' in request_params:
+            del request_params['limit']
+
+        request_params.update({'l': limit, 'o': offset})
+
+        return '%s?%s' % (
+            self.resource_uri,
+            urllib.urlencode(request_params)
+        )
+
+    def get_limit(self):
+        if 'l' not in self.request_data:
+            return super(Paginator, self).get_limit()
+
+        limit = self.request_data['l']
+
+        try:
+            limit = int(self.request_data['l'])
+        except ValueError:
+            raise exceptions.BadRequest("Invalid limit '%s' provided. Please provide a positive integer.", limit)
+
+        if limit < 0:
+            raise exceptions.BadRequest("Invalid limit '%s' provided. Please provide an integer >= 0.", limit)
+
+        return limit
+
+    def get_offset(self):
+        if 'o' not in self.request_data:
+            return super(Paginator, self).get_offset()
+
+        offset = self.request_data['o']
+
+        try:
+            offset = int(offset)
+        except ValueError:
+            raise exceptions.BadRequest("Invalid offset '%s' provided. Please provide an integer.", offset)
+
+        if offset < 0:
+            raise exceptions.BadRequest("Invalid offset '%s' provided. Please provide an integer >= 0.", offset)
+
+        return offset
 
 class StreamResource(resources.Resource):
     class Meta:
-        allowed_methods = ('get',)
+        list_allowed_methods = ('get',)
+        detail_allowed_methods = ('get', 'wait')
         only_detail_fields = ('datapoints',)
         serializer = serializers.DatastreamSerializer()
+        paginator_class = Paginator
+        limit = 100
 
     # TODO: Set help text
     id = fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
@@ -39,7 +112,7 @@ class StreamResource(resources.Resource):
     highest_granularity = fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = fields.ListField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
-    datapoints = fields.ListField('datapoints', null=True, blank=False, readonly=True, help_text=None)
+    datapoints = DatapointsField(attribute='datapoints', null=True, blank=False, readonly=True, help_text=None)
 
     def get_resource_uri(self, bundle_or_obj):
         kwargs = {
@@ -73,17 +146,27 @@ class StreamResource(resources.Resource):
         return data
 
     def alter_detail_data_to_serialize(self, request, data):
-        data.data['_query_params'] = self._get_query_params(request)
+        data.data['query_params'] = self._get_query_params(request, data.obj)
+
+        paginator = self._meta.paginator_class(request.GET, data.data['datapoints'], resource_uri=data.data['resource_uri'], limit=self._meta.limit)
+        page = paginator.page()
+
+        data.data['datapoints'] = page['objects']
+        data.data.setdefault('meta', {}).update(page['meta'])
+
         return data
 
-    def _get_query_params(self, request):
-        granularity = request.GET.get(QUERY_GRANULARITY, datastream.Granularity.values[-1].key)
+    def _get_query_params(self, request, stream):
+        granularity = request.GET.get(QUERY_GRANULARITY, None)
         for g in datastream.Granularity.values:
             if granularity == g.key:
                 granularity = g
                 break
         else:
-            raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
+            if granularity is None:
+                granularity = stream.highest_granularity
+            else:
+                raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
         if QUERY_START in request.GET:
             start = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_START)), pytz.utc)
@@ -105,14 +188,13 @@ class StreamResource(resources.Resource):
         else:
             end_exclusive = None
 
-        if QUERY_START and QUERY_START_EXCLUSIVE:
+        if start and start_exclusive:
             raise InvalidRange("Only one time range start can be specified.")
 
-        if QUERY_END and QUERY_END_EXCLUSIVE:
+        if end and end_exclusive:
             raise InvalidRange("Only one time range end can be specified.")
 
-        if not QUERY_START and not QUERY_START_EXCLUSIVE:
-            start = datetime.datetime.min
+        reverse = request.GET.get(QUERY_REVERSE, '0').lower() in ('yes', 'true', 't', '1', 'y')
 
         value_downsamplers = []
         for downsampler in request.GET.getlist(QUERY_VALUE_DOWNSAMPLERS, []):
@@ -146,6 +228,7 @@ class StreamResource(resources.Resource):
             'end': end,
             'start_exclusive': start_exclusive,
             'end_exclusive': end_exclusive,
+            'reverse': reverse,
             'value_downsamplers': value_downsamplers,
             'time_downsamplers': time_downsamplers,
         }
@@ -156,9 +239,11 @@ class StreamResource(resources.Resource):
         except datastream_exceptions.StreamNotFound:
             raise exceptions.NotFound("Couldn't find a stream with id='%s'." % kwargs['pk'])
 
-        params = self._get_query_params(request)
+        params = self._get_query_params(request, stream)
 
-        # TODO: Support offset and pagination
+        if not params['start'] and not params['start_exclusive']:
+            params['start'] = datetime.datetime.min
+
         stream.datapoints = datastream.get_data(
             stream_id=kwargs['pk'],
             granularity=params['granularity'],
@@ -166,6 +251,7 @@ class StreamResource(resources.Resource):
             end=params['end'],
             start_exclusive=params['start_exclusive'],
             end_exclusive=params['end_exclusive'],
+            reverse=params['reverse'],
             value_downsamplers=params['value_downsamplers'],
             time_downsamplers=params['time_downsamplers'],
         )
@@ -186,3 +272,7 @@ class StreamResource(resources.Resource):
 
     def rollback(self, bundles):
         raise NotImplementedError
+
+    def wait_detail(self, request, **kwargs):
+        # TODO: Implement
+        return http.HttpNotImplemented()

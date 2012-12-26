@@ -32,7 +32,8 @@ datapoints through query string parameters (default is all datapoints)::
 Timestamps are in seconds since `UNIX epoch`_. If start or end timestamp is missing, this means all
 datapoints from the beginning of the stream, or all datapoints to the end of the stream, respectively.
 For real-time streams the latter in practice means all datapoints until the current time. Start and end
-timestamps are inclusive.
+timestamps are inclusive. If you want exclusive timestamps, you can use ``sx`` and ``ex`` query string
+parameters.
 
 Additionally, paging query string parameters can be used::
 
@@ -51,7 +52,7 @@ last datapoint to wait until new datapoint is added to the stream.
 Together with some metadata datapoints are returned as a list of ``t`` (time) and ``v`` (value) dictionaries.
 Which data is returned can be configured with query parameters:
 
-* ``g`` -- granularity (``s``, ``10s``, ``m``, ``10m``, ``h``, ``6h``, and ``d``, for seconds, 10 seconds, minutes,
+* ``g`` -- granularity (``s``, ``S``, ``m``, ``M``, ``h``, ``H``, and ``d``, for seconds, 10 seconds, minutes,
   10 minutes, hours, 6 hours, and days, respectively)
 * ``v`` -- value downsamplers, you can specify them to limit returned downsampled values; a comma-separated
   list or specified multiple times in the query

@@ -61,7 +61,7 @@ class Command(base.BaseCommand):
 
         for stream_id, types in streams:
             try:
-                t = datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max).next()['t']
+                t = datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max, reverse=True).next()['t']
 
                 if t.tzinfo is None:
                     t = t.replace(tzinfo=pytz.utc)
