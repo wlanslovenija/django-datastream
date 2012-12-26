@@ -1,9 +1,9 @@
 body {
-    font: 13px Verdana, Geneva, sans-serif;
+    font: 13px Verdana,Geneva,sans-serif;
     color: #333333;
     text-align: left;
     text-rendering: optimizeLegibility;
-    -webkit-font-smoothing:antialiased;
+    -webkit-font-smoothing: antialiased;
 }
 
 p, ol, ul, blockquote, pre, code {
@@ -47,7 +47,7 @@ a:not(:hover) {
 }
 
 pre, code, textarea {
-    font-family: "Lucida Console", Monaco, monospace;
+    font-family: "Lucida Console",Monaco,monospace;
 }
 
 #debug {
@@ -59,7 +59,7 @@ pre, code, textarea {
     border-collapse: collapse;
 }
 
-#debugTable td, #debugTable th{
+#debugTable td, #debugTable th {
     border: 1px solid black;
     padding: 5px;
 }
