@@ -1,12 +1,22 @@
 # Django settings for test_project project
 
-import os.path, socket
+import os.path
 
 settings_dir = os.path.abspath(os.path.dirname(__file__))
 default_template_dir = os.path.join(settings_dir, 'templates')
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
+
+ADMINS = (
+)
+
+MANAGERS = ADMINS
+
+MONGO_DATABASE_NAME = 'test_project'
+
+import mongoengine
+mongoengine.connect(MONGO_DATABASE_NAME)
 
 # We are not really using a relational database, but tests fail without
 # defining it because flush command is being run, which expects it
@@ -50,9 +60,9 @@ STATIC_URL = '/static/'
 
 # Additional locations of static files
 STATICFILES_DIRS = (
-# Put strings here, like "/home/html/static" or "C:/www/django/static".
-# Always use forward slashes, even on Windows.
-# Don't forget to use absolute paths, not relative paths.
+    # Put strings here, like "/home/html/static" or "C:/www/django/static".
+    # Always use forward slashes, even on Windows.
+    # Don't forget to use absolute paths, not relative paths.
 )
 
 # List of finder classes that know how to find static files in
@@ -97,50 +107,10 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'tastypie',
     'django_datastream',
-#    'pushserver',
     'test_project.test_app',
 )
-
-INTERNAL_IPS = (
-    '127.0.0.1',
-)
-
-MONGO_DATABASE_NAME = 'test_project'
-
-import mongoengine
-mongoengine.connect(MONGO_DATABASE_NAME)
 
 DATASTREAM_BACKEND = 'datastream.backends.mongodb.Backend'
 DATASTREAM_BACKEND_SETTINGS = {
     'database_name': MONGO_DATABASE_NAME,
 }
-
-#PUSH_SERVER = {
-#    'port': 8001,
-#    'address': '127.0.0.1',
-#    'store': {
-#        'type': 'memory',
-#        'min_messages': 0,
-#        'max_messages': 100,
-#        'message_timeout': 10,
-#    },
-#    'locations': (
-#        {
-#            'type': 'subscriber',
-#            'url': r'/updates/([^/]+)',
-#            'polling': 'long',
-#            'create_on_get': True,
-#            'allow_origin': 'http://127.0.0.1:8000',
-#            'allow_credentials': True,
-#            'passthrough': 'http://127.0.0.1:8000/passthrough',
-#        },
-#        {
-#            'type': 'publisher',
-#            'url': r'/send-update/([^/]+)',
-#        },
-#    ),
-#}
-#
-#INTERNAL_IPS = (
-#    '127.0.0.1',
-#)
