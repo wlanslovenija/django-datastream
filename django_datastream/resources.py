@@ -237,7 +237,7 @@ class StreamResource(resources.Resource):
         try:
             stream = datastream.Stream(datastream.get_tags(kwargs['pk']))
         except datastream_exceptions.StreamNotFound:
-            raise exceptions.NotFound("Couldn't find a stream with id='%s'." % kwargs['pk'])
+            raise exceptions.NotFound("Stream '%s' not found." % kwargs['pk'])
 
         params = self._get_query_params(request, stream)
 
