@@ -1,22 +1,22 @@
 (function($, undefined) {
-
-    var debug,
-        plots = {},
-        cached_data = {},
-        current_plot_id = 0,
-        datastream_location = '',
-        restful_api_location = 'api/v1/stream/',
-        query_in_progress = false,
-        plot_redrawing = false;
+    var debug;
+    var plots = {};
+    var cached_data = {};
+    var current_plot_id = 0;
+    var datastream_location = '';
+    var restful_api_location = 'api/v1/stream/';
+    var query_in_progress = false;
+    var plot_redrawing = false;
 
     function toDebugTime (miliseconds) {
         function twoDigits(digit) {
-            return ("0" + digit).slice(-2);
+            return ('0' + digit).slice(-2);
         }
 
         var d = new Date();
         d.setTime(miliseconds);
-        return twoDigits(d.getHours()) + ':' +
+        return
+            twoDigits(d.getHours()) + ':' +
             twoDigits(d.getMinutes()) + ':' +
             twoDigits(d.getSeconds()) + ' ' +
             twoDigits(d.getDate()) + '.' +
@@ -36,21 +36,23 @@
     // a field from window.location if document.domain has been set
     try {
         datastream_location = location.href + restful_api_location;
-    } catch (e) {
+    }
+    catch (e) {
         // Use the href attribute of an A element
         // since IE will modify it given document.location
         datastream_location = document.createElement('a');
-        datastream_location.href = "";
+        datastream_location.href = '';
         datastream_location = datastream_location.href + restful_api_location;
     }
 
     function Datastream(placeholder, options) {
-
-        var self = this,
-            add_stream = null;
+        var self = this;
+        var add_stream = null;
 
         if (options && options.streams) {
-            options = $.extend(options, { 'datastream': {'streams': options.streams }});
+            options = $.extend(options, {
+                'datastream': {'streams': options.streams}
+            });
             delete options.streams;
         }
 
@@ -63,20 +65,20 @@
         self.placeholder = placeholder;
 
         if (placeholder.children('canvas') && add_stream) {
-
-            // if selected existig canvas, add stream
+            // Of selected existig canvas, add stream
             var plot_id = placeholder.prop('id');
             self.options.datastream.streams.push(add_stream);
             plots[plot_id].addStream(add_stream);
 
-        } else {
-
-            // else add new plot
+        }
+        else {
+            // Else add new plot
             var plot_id = $.datastream.nextId();
-            placeholder.append($('<div>', {
-                'id': plot_id,
-                'style': 'width:' + self.options.width + 'px; ' +
-                'height:' + self.options.height + 'px'
+            placeholder.append($('<div>').attr({
+                'id': plot_id
+            }).css({
+                'width': self.options.width + 'px',
+                'height': self.options.height + 'px'
             }));
 
             plots[plot_id] = $.plot('#' + plot_id, [[]], self.options);
@@ -92,13 +94,15 @@
     };
 
     $.datastream.streamList = function (callback) {
-        $.getJSON($.datastream.defaults.url, function (data, status) {
+        $.getJSON($.datastream.defaults.url, function (data, textStatus, jqXHR) {
             callback(data.objects);
         });
     };
 
     $.datastream.streamName = function (stream) {
-        var name_tag = $.grep(stream.tags, function (val, i) { return val.name; });
+        var name_tag = $.grep(stream.tags, function (val, i) {
+            return val.name;
+        });
         return (name_tag.length) ? name_tag[0].name : undefined;
     };
 
@@ -166,7 +170,9 @@
 
     function getStreamData(stream_id, granularity, from, to, callback) {
         if (query_in_progress) {
-            setTimeout(function () { getStreamData(stream_id, granularity, from, to, callback); }, 40);
+            setTimeout(function () {
+                getStreamData(stream_id, granularity, from, to, callback);
+            }, 40);
             return;
         }
 
@@ -174,9 +180,8 @@
             cached_data[stream_id] = {};
         }
 
-        var intervals = [],
-            collection = (cached_data[stream_id][granularity]) ?
-                cached_data[stream_id][granularity] : null;
+        var intervals = [];
+        var collection = cached_data[stream_id][granularity] || null;
 
         if (from >= to) {
             throw new Error("Argument Error: argument from must be less than argument to.");
@@ -184,27 +189,29 @@
 
         intervals.push([from, to]);
 
-        // check intersections of requested data with local data
+        // Check intersections of requested data with local data
         if (collection !== null) {
             $.each(collection, function (i, c) {
                 var add = [];
 
                 intervals = $.grep(intervals, function (interval, j) {
-                    var f = interval[0],
-                        t = interval[1];
+                    var f = interval[0];
+                    var t = interval[1];
 
                     if (f <= c.points_to && t >= c.points_from) {
-                        // requested data intersects with given interval
+                        // Requested data intersects with given interval
 
                         if (f < c.points_from && t > c.points_to) {
-                            // requested data interval larger than given
+                            // Requested data interval larger than given
                             add.push([f, c.points_from]);
                             add.push([c.points_to, t]);
-                        } else if (f < c.points_from) {
-                            // requested data interval is to the left of given
+                        }
+                        else if (f < c.points_from) {
+                            // Requested data interval is to the left of given
                             add.push([f, c.points_from]);
-                        } else if (t > c.points_to) {
-                            // requested data interval is to the right of given
+                        }
+                        else if (t > c.points_to) {
+                            // Requested data interval is to the right of given
                             add.push([c.points_to, t]);
                         }
                         return false;
@@ -214,7 +221,7 @@
 
                 intervals = intervals.concat(add);
 
-                // if requested data is in local data
+                // If requested data is in local data
                 if (!intervals.length) {
                     return false;
                 }
@@ -222,20 +229,21 @@
         }
 
         function selectData() {
-            // return some data (even if not all is received yet)
-            var data = {},
-                points = [],
-                collection = cached_data[stream_id][granularity];
+            // Return some data (even if not all is received yet)
+            var data = {};
+            var points = [];
+            var collection = cached_data[stream_id][granularity];
 
             function bisectPoints(val, arr) {
-                var h, i = 0,
-                    j = arr.length;
+                var i = 0;
+                var j = arr.length;
 
                 while (i < j) {
-                    h = Math.floor((i + j) / 2);
+                    var h = Math.floor((i + j) / 2);
                     if (val > arr[h][0]) {
                         i = h + 1;
-                    } else {
+                    }
+                    else {
                         j = h;
                     }
                 }
@@ -246,15 +254,17 @@
                 throw new Error('The collection should never be null or empty here, ever! Something is very, very wrong.');
             }
 
-            collection.sort(function (a, b) { return a.query_from - b.query_from });
+            collection.sort(function (a, b) {
+                return a.query_from - b.query_from
+            });
 
             $.each(collection, function (i, c) {
                 if (from <= c.query_to && to >= c.query_from) {
                     // requested data intersects with collection
-                    var f = (from < c.query_from) ? c.query_from : from,
-                        t = (to > c.query_to) ? c.query_to : to,
-                        i = bisectPoints(f, c.data),
-                        j = bisectPoints(t, c.data);
+                    var f = (from < c.query_from) ? c.query_from : from;
+                    var t = (to > c.query_to) ? c.query_to : to;
+                    var i = bisectPoints(f, c.data);
+                    var j = bisectPoints(t, c.data);
 
                     points = points.concat(c.data.slice(i, j));
                 }
@@ -275,165 +285,168 @@
 
         if (intervals.length) {
             $.each(intervals, function (i, interval) {
-                var from = interval[0],
-                    to = interval[1];
+                var from = interval[0];
+                var to = interval[1];
 
-                var get_url = $.datastream.defaults.url + stream_id,
-                    params = {
-                        'g': granularity,
-                        's': Math.floor(from / 1000).toString(),
-                        'e': Math.floor(to / 1000).toString(),
-                        'd': 'm'
-                    };
+                var get_url = $.datastream.defaults.url + stream_id;
+                var params = {
+                    'g': granularity,
+                    's': Math.floor(from / 1000).toString(),
+                    'e': Math.floor(to / 1000).toString(),
+                    'd': 'm'
+                };
 
                 console.debug('GET ' + get_url);
 
                 query_in_progress = true;
-                $.getJSON(get_url, params,
-                    function (data) {
-                        var t, v, j, k, p_f, p_t, first, last,
-                            points = [],
-                            processed_data = {},
-                            label = $.datastream.streamName(data) + ' = ?',
-                            new_interval = true,
-                            update = true,
-                            collection = (cached_data[stream_id][granularity]) ?
-                                cached_data[stream_id][granularity] : null;
+                $.getJSON(get_url, params, function (data, textStatus, jqXHR) {
+                    var points = [];
+                    var processed_data = {};
+                    var label = $.datastream.streamName(data) + ' = ?';
+                    var new_interval = true;
+                    var update = true;
+                    var collection = cached_data[stream_id][granularity] || null;
 
-                        if (debug) {
-                            debug.find('#debugTable tr:last').after($('<tr>')
+                    if (debug) {
+                        debug.find('#debugTable tr:last').after(
+                            $('<tr>')
                                 .append($('<td>').html($.datastream.streamName(data)))
                                 .append($('<td>').html(granularity))
                                 .append($('<td>').html(toDebugTime(from)))
                                 .append($('<td>').html(toDebugTime(to)))
                                 .append($('<td>').html(data.datapoints.length))
-                            );
+                        );
+                    }
+
+                    if (!data.datapoints.length) {
+                        return;
+                    }
+
+                    // Format data points; we use for because it runs faster
+                    // than each and we might have thousands of points here
+                    for (var j = 0; j < data.datapoints.length; j += 1) {
+                        var t = data.datapoints[j].t;
+                        var v = data.datapoints[j].v;
+
+                        if ($.isPlainObject(t)) {
+                            t = new Date(t.a).getTime();
+                        }
+                        else {
+                            t = new Date(t).getTime();
                         }
 
-                        if (!data.datapoints.length) {
-                            return;
+                        if ($.isPlainObject(v)) {
+                            v = v.m;
+                        }
+                        else {
+                            // v = v;
                         }
 
-                        // format data points; we use for because it runs faster
-                        // than each and we might have thousands of points here
-                        for (j = 0; j < data.datapoints.length; j += 1) {
-                            t = data.datapoints[j].t;
-                            v = data.datapoints[j].v;
+                        points.push([t, v]);
+                    }
 
-                            if ($.isPlainObject(t)) {
-                                t = new Date(t.a).getTime();
-                            } else {
-                                t = new Date(t).getTime();
-                            }
+                    // Time of first and last point
+                    var first = data.datapoints[0];
+                    var last = data.datapoints[data.datapoints.length - 1];
+                    if ($.isPlainObject(first.t)) {
+                        var p_f = new Date(first.t.z).getTime();
+                        var p_t = new Date(last.t.z).getTime();
+                    }
+                    else {
+                        var p_f = new Date(first.t).getTime();
+                        var p_t = new Date(last.t).getTime();
+                    }
 
-                            if ($.isPlainObject(v)) {
-                                v = v.m;
-                            } else {
-                                v = v;
-                            }
-
-                            points.push([t, v]);
-                        }
-
-                        // time of first and last point
-                        first = data.datapoints[0];
-                        last = data.datapoints[data.datapoints.length - 1];
-                        if ($.isPlainObject(first.t)) {
-                            p_f = new Date(first.t.z).getTime();
-                            p_t = new Date(last.t.z).getTime();
-                        } else {
-                            p_f = new Date(first.t).getTime();
-                            p_t = new Date(last.t).getTime();
-                        }
-
-                        // add to cache
-                        if (!cached_data[stream_id][granularity]) {
-                            cached_data[stream_id][granularity] = [];
-                        } else {
-                            $.each(collection, function(j, c) {
-                                k = 0;
-                                // concatenate with an existing interval if possible
-                                if (c.points_from === to) {
-                                    if (points.length === 1 &&
-                                        points[0][0] === c.data[0][0] &&
-                                        points[0][1] === c.data[0][1]) {
-                                        update = false;
-                                        return false;
-                                    }
-                                    // remove overlapping points
-                                    while (k < c.data.length) {
-                                        if (points[points.length - 1][0] >= c.data[k][0]) {
-                                            k += 1;
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                    c.data = points.concat(c.data.slice(k));
-                                    c.query_from = from;
-                                    c.points_from = p_f;
-                                    new_interval = false;
-
-                                } else if (c.points_to === from) {
-                                    if (points.length === 1 &&
-                                        points[0][0] === c.data[c.data.length - 1][0] &&
-                                        points[0][1] === c.data[c.data.length - 1][1]) {
-                                        update = false;
-                                        return false;
-                                    }
-                                    // remove overlapping points
-                                    while (k < c.data.length) {
-                                        if (points[0][0] <= c.data[c.data.length - 1 - k][0]) {
-                                            k += 1;
-                                        } else {
-                                            break;
-                                        }
-                                    }
-                                    c.data = c.data.slice(0, c.data.length - k).concat(points);
-                                    c.query_to = to;
-                                    c.points_to = p_t;
-                                    new_interval = false;
+                    // Add to cache
+                    if (!cached_data[stream_id][granularity]) {
+                        cached_data[stream_id][granularity] = [];
+                    }
+                    else {
+                        $.each(collection, function (j, c) {
+                            var k = 0;
+                            // concatenate with an existing interval if possible
+                            if (c.points_from === to) {
+                                if (points.length === 1 &&
+                                    points[0][0] === c.data[0][0] &&
+                                    points[0][1] === c.data[0][1]) {
+                                    update = false;
+                                    return false;
                                 }
-                            });
-                        }
-
-                        if (update) {
-                            if (new_interval) {
-                                processed_data.data = points;
-                                processed_data.label = label;
-                                processed_data.query_from = from;
-                                processed_data.query_to = to;
-                                processed_data.points_from = p_f;
-                                processed_data.points_to = p_t;
-                                cached_data[stream_id][granularity].push(processed_data);
+                                // remove overlapping points
+                                while (k < c.data.length) {
+                                    if (points[points.length - 1][0] >= c.data[k][0]) {
+                                        k += 1;
+                                    }
+                                    else {
+                                        break;
+                                    }
+                                }
+                                c.data = points.concat(c.data.slice(k));
+                                c.query_from = from;
+                                c.points_from = p_f;
+                                new_interval = false;
                             }
+                            else if (c.points_to === from) {
+                                if (points.length === 1 &&
+                                    points[0][0] === c.data[c.data.length - 1][0] &&
+                                    points[0][1] === c.data[c.data.length - 1][1]) {
+                                    update = false;
+                                    return false;
+                                }
+                                // remove overlapping points
+                                while (k < c.data.length) {
+                                    if (points[0][0] <= c.data[c.data.length - 1 - k][0]) {
+                                        k += 1;
+                                    }
+                                    else {
+                                        break;
+                                    }
+                                }
+                                c.data = c.data.slice(0, c.data.length - k).concat(points);
+                                c.query_to = to;
+                                c.points_to = p_t;
+                                new_interval = false;
+                            }
+                        });
+                    }
 
-                            selectData();
+                    if (update) {
+                        if (new_interval) {
+                            processed_data.data = points;
+                            processed_data.label = label;
+                            processed_data.query_from = from;
+                            processed_data.query_to = to;
+                            processed_data.points_from = p_f;
+                            processed_data.points_to = p_t;
+                            cached_data[stream_id][granularity].push(processed_data);
                         }
+
+                        selectData();
                     }
-                ).complete(function () {
-                        query_in_progress = false;
-                    }
-                );
+                }).complete(function () {
+                    // TODO: Why here and not in the callback above?
+                    query_in_progress = false;
+                });
             });
         }
     }
 
     function init(plot) {
-        var enabled = false,
-            streams = [],
-            zoom_stack = [],
-            granularity = [
-                {'name': "Seconds",    'key': 's',   'span': 1},
-                {'name': "10 Seconds", 'key': '10s', 'span': 10},
-                {'name': "Minutes",    'key': 'm',   'span': 60},
-                {'name': "10 Minutes", 'key': '10m', 'span': 600},
-                {'name': "Hours",      'key': 'h',   'span': 3600},
-                {'name': "6 Hours",    'key': '6h',  'span': 21600},
-                {'name': "Days",       'key': 'd',   'span': 86400}
-            ],
-            mode = 0;
+        var enabled = false;
+        var streams = [];
+        var zoom_stack = [];
+        var granularity = [
+            {'name': "Seconds",    'key': 's',   'span': 1},
+            {'name': "10 Seconds", 'key': '10s', 'span': 10},
+            {'name': "Minutes",    'key': 'm',   'span': 60},
+            {'name': "10 Minutes", 'key': '10m', 'span': 600},
+            {'name': "Hours",      'key': 'h',   'span': 3600},
+            {'name': "6 Hours",    'key': '6h',  'span': 21600},
+            {'name': "Days",       'key': 'd',   'span': 86400}
+        ];
+        var mode = 0;
 
-        plot.streams = function() {
+        plot.streams = function () {
             return streams;
         };
 
@@ -444,7 +457,8 @@
 
                 if (s.to === null) {
                     s.to = new Date().getTime();
-                } else if (jQuery.type(s.to) === 'date') {
+                }
+                else if (jQuery.type(s.to) === 'date') {
                     s.to = s.to.getTime();
                 }
 
@@ -458,7 +472,8 @@
 
                 if (s.from === null) {
                     s.from = s.to - plot.getPlaceholder().width() * granularity[s.granularity].span * 1000;
-                } else if (jQuery.type(s.from) === 'date') {
+                }
+                else if (jQuery.type(s.from) === 'date') {
                     s.from = s.from.getTime();
                 }
 
@@ -471,18 +486,22 @@
         }
 
         function updateData(data) {
-            var new_stream = true,
-                new_data = [],
-                o = plot.getOptions(),
-                xaxes_options = plot.getAxes().xaxis.options;
+            var new_stream = true;
+            var new_data = [];
+            var options = plot.getOptions();
+            var xaxes_options = plot.getAxes().xaxis.options;
 
-            $.each(plot.getData(), function(key, val) {
+            $.each(plot.getData(), function (key, val) {
                 if (val.data.length) {
                     if (val.label === data.label) {
                         new_data.push(data);
                         new_stream = false;
-                    } else {
-                        new_data.push({'data': val.data, 'label': val.label});
+                    }
+                    else {
+                        new_data.push({
+                            'data': val.data,
+                            'label': val.label
+                        });
                     }
                     delete val.data;
                 }
@@ -493,22 +512,21 @@
             }
 
             plot.setData(new_data);
-            xaxes_options.min = o.from;
-            xaxes_options.max = o.to;
+            xaxes_options.min = options.from;
+            xaxes_options.max = options.to;
             plot.setupGrid();
             plot.draw();
         }
 
         plot.addStream = function(stream) {
-            var i,
-                o = plot.getOptions(),
-                gr = granularity[o.granularity].key,
-                span = (o.to - o.from);
+            var options = plot.getOptions();
+            var gr = granularity[options.granularity].key;
+            var span = options.to - options.from;
 
             if (mode === 1) {
-                // if alternative mode, find the best granularity
-                for (i = 0; i < granularity.length; i++) {
-                    if (span / 1000 / granularity[i].span < 2 * o.width) {
+                // If alternative mode, find the best granularity
+                for (var i = 0; i < granularity.length; i++) {
+                    if (span / 1000 / granularity[i].span < 2 * options.width) {
                         break;
                     }
                 }
@@ -516,35 +534,35 @@
                 gr = granularity[i].key;
             }
 
-            if ($.inArray(stream, o.datastream.streams) < 0) {
-                o.datastream.streams.push(stream);
+            if ($.inArray(stream, options.datastream.streams) < 0) {
+                options.datastream.streams.push(stream);
             }
 
-            getStreamData(stream, gr, o.from - Math.floor(span / 2),
-                o.to + Math.floor(span / 2), function (data) {
+            getStreamData(stream, gr, options.from - Math.floor(span / 2),
+                options.to + Math.floor(span / 2), function (data) {
                 updateData(data);
             });
         };
 
         function update() {
-            $.each(streams, function(key, val) {
+            $.each(streams, function (key, val) {
                 plot.addStream(val);
             });
         }
 
         function zoom(from, to) {
-            var o = plot.getOptions(),
-                xaxes_options = plot.getAxes().xaxis.options;
+            var options = plot.getOptions();
+            var xaxes_options = plot.getAxes().xaxis.options;
 
             zoom_stack.push({
                 'min': xaxes_options.min,
                 'max': xaxes_options.max,
-                'granularity': o.granularity
+                'granularity': options.granularity
             });
 
             mode = 1;
-            o.from = from;
-            o.to = to;
+            options.from = from;
+            options.to = to;
 
             plot.clearSelection();
             update();
@@ -553,7 +571,12 @@
             // plugin to an insane selection. Otherwise the plugin thinks we
             // are still in selection process. We could hack the plugin, but it
             // is not polite to play with other people's toys.
-            plot.setSelection({ 'xaxes': { 'from': 0, 'to': 0} });
+            plot.setSelection({
+                'xaxes': {
+                    'from': 0,
+                    'to': 0
+                }
+            });
         }
 
         function zoomOut() {
@@ -561,12 +584,12 @@
                 return;
             }
 
-            var o = plot.getOptions(),
-                zoom_level = zoom_stack.pop();
+            var options = plot.getOptions();
+            var zoom_level = zoom_stack.pop();
 
-            o.from = zoom_level.min;
-            o.to = zoom_level.max;
-            o.granularity = zoom_level.granularity;
+            options.from = zoom_level.min;
+            options.to = zoom_level.max;
+            options.granularity = zoom_level.granularity;
             update();
         }
 
@@ -581,52 +604,55 @@
         function onMouseUp(event) {
             switch (event.which) {
                 case 3:
-                    // right mouse button pressed
+                    // Right mouse button pressed
                     if (plot.getSelection() === null) {
                         zoomOut();
                     }
             }
         }
 
-        var update_legend_timeout = null,
-            latest_position = null;
+        var update_legend_timeout = null;
+        var latest_position = null;
 
         function updateLegend() {
             update_legend_timeout = null;
 
-            var i, j,
-                pos = latest_position,
-                legends = plot.getPlaceholder().find('.legendLabel'),
-                axes = plot.getAxes(),
-                dataset = plot.getData();
+            var legends = plot.getPlaceholder().find('.legendLabel');
+            var axes = plot.getAxes();
+            var dataset = plot.getData();
 
-            if (pos.x < axes.xaxis.min || pos.x > axes.xaxis.max ||
-                pos.y < axes.yaxis.min || pos.y > axes.yaxis.max)
+            if (latest_position.x < axes.xaxis.min || latest_position.x > axes.xaxis.max || latest_position.y < axes.yaxis.min || latest_position.y > axes.yaxis.max) {
                 return;
+            }
 
-            // we use for because it runs faster than each and we might have
+            // We use for because it runs faster than each and we might have
             // thousands of points here
-            for (i = 0; i < dataset.length; ++i) {
+            for (var i = 0; i < dataset.length; ++i) {
                 var series = dataset[i];
 
                 if (!series.data.length) {
                     return;
                 }
 
-                // find the nearest points, x-wise; we use for because it runs
+                // Find the nearest points, x-wise; we use for because it runs
                 // faster than each and we might have thousands of points here
-                for (j = 0; j < series.data.length; ++j)
-                    if (series.data[j][0] > pos.x)
+                for (var j = 0; j < series.data.length; ++j) {
+                    if (series.data[j][0] > latest_position.x) {
                         break;
+                    }
+                }
 
                 // interpolate
-                var y, p1 = series.data[j - 1], p2 = series.data[j];
+                var p1 = series.data[j - 1];
+                var p2 = series.data[j];
                 if (p1 == null) {
-                    y = p2[1];
-                } else if (p2 == null) {
-                    y = p1[1];
-                } else {
-                    y = p1[1] + (p2[1] - p1[1]) * (pos.x - p1[0]) / (p2[0] - p1[0]);
+                    var y = p2[1];
+                }
+                else if (p2 == null) {
+                    var y = p1[1];
+                }
+                else {
+                    var y = p1[1] + (p2[1] - p1[1]) * (latest_position.x - p1[0]) / (p2[0] - p1[0]);
                 }
 
                 legends.eq(i).text(series.label.replace(/=.*/, '= ' + y.toFixed(2)));
@@ -635,17 +661,18 @@
 
         function onHover(event, pos) {
             latest_position = pos;
-            if (!update_legend_timeout)
+            if (!update_legend_timeout) {
                 update_legend_timeout = setTimeout(updateLegend, 50);
+            }
         }
 
         function onPan() {
-            var o = plot.getOptions(),
-                xaxes_options = plot.getAxes().xaxis.options;
+            var options = plot.getOptions();
+            var xaxes_options = plot.getAxes().xaxis.options;
 
-            if (Math.abs(o.from - xaxes_options.min) / (xaxes_options.max - xaxes_options.min) > 0.3) {
-                o.from = xaxes_options.min;
-                o.to = xaxes_options.max;
+            if (Math.abs(options.from - xaxes_options.min) / (xaxes_options.max - xaxes_options.min) > 0.3) {
+                options.from = xaxes_options.min;
+                options.to = xaxes_options.max;
                 console.debug("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
 
                 update();
@@ -653,31 +680,32 @@
         }
 
         function onScroll(event, delta, deltaX, deltaY) {
-            var o = plot.getOptions(),
-                xaxes_options = plot.getAxes().xaxis.options;
+            var options = plot.getOptions();
+            var xaxes_options = plot.getAxes().xaxis.options;
 
             function changeGranularity(delta) {
                 zoom_stack = [];
                 if (mode === 1) {
-                    var time_span = xaxes_options.max - xaxes_options.min,
-                        theoretic_time_span = plot.width() * granularity[o.granularity].span * 1000;
+                    var time_span = xaxes_options.max - xaxes_options.min;
+                    var theoretic_time_span = plot.width() * granularity[options.granularity].span * 1000;
 
                     if ((time_span - theoretic_time_span) * delta > 0) {
-                        if (o.granularity + delta >= 0 && o.granularity + delta < granularity.length) {
-                            o.granularity += delta;
+                        if (options.granularity + delta >= 0 && options.granularity + delta < granularity.length) {
+                            options.granularity += delta;
                         }
                     }
                     mode = 0;
 
-                } else {
-                    if (o.granularity + delta < 0 || o.granularity + delta >= granularity.length) {
+                }
+                else {
+                    if (options.granularity + delta < 0 || options.granularity + delta >= granularity.length) {
                         return;
                     }
-                    o.granularity += delta;
+                    options.granularity += delta;
                 }
 
-                o.to = xaxes_options.max;
-                o.from = o.to - plot.width() * granularity[o.granularity].span * 1000;
+                options.to = xaxes_options.max;
+                options.from = options.to - plot.width() * granularity[options.granularity].span * 1000;
                 plot_redrawing = true;
                 update();
 
@@ -689,18 +717,23 @@
             if (!plot_redrawing && deltaY > 0.1) {
                 changeGranularity(1);
 
-            } else if (!plot_redrawing && deltaY < -0.1) {
+            }
+            else if (!plot_redrawing && deltaY < -0.1) {
                 changeGranularity(-1);
 
-            } else if (deltaX != 0) {
-                var frame_rate = o.pan.frameRate;
+            }
+            else if (deltaX != 0) {
+                var frame_rate = options.pan.frameRate;
                 if (plot_redrawing || !frame_rate) {
                     return false;
                 }
 
                 plot_redrawing = true;
                 setTimeout(function () {
-                    plot.pan({ left: -deltaX * 40, top: 0 });
+                    plot.pan({
+                        'left': -deltaX * 40,
+                        'top': 0
+                    });
                     plot_redrawing = false;
                 }, 1 / frame_rate * 1000);
             }
@@ -709,24 +742,16 @@
         }
 
         function bindEvents(plot, eventHolder) {
-            eventHolder.mouseup(onMouseUp)
-                       .bind('contextmenu', onContextMenu);
-
-            plot.getPlaceholder().bind('plothover', onHover)
-                                 .bind('plotselected', onPlotSelected)
-                                 .bind('plotpan', onPan)
-                                 .bind('mousewheel', onScroll);
+            eventHolder.mouseup(onMouseUp).bind('contextmenu', onContextMenu);
+            plot.getPlaceholder().bind('plothover', onHover).bind('plotselected', onPlotSelected).bind('plotpan', onPan).bind('mousewheel', onScroll);
             update();
         }
 
         function shutdown(plot, eventHolder) {
-            eventHolder.unbind('mouseup', onMouseUp)
-                       .unbind('contextmenu', onContextMenu);
+            eventHolder.unbind('mouseup', onMouseUp).unbind('contextmenu', onContextMenu);
 
-            plot.getPlaceholder().unbind('plothover', onHover)
-                                 .unbind('plotselected', onPlotSelected)
-                                 .bind('plotpan', onPan)
-                                 .unbind('mousewheel', onScroll);
+            // TODO: jQuery supports event handler namespaces, we might want to use that?
+            plot.getPlaceholder().unbind('plothover', onHover).unbind('plotselected', onPlotSelected).bind('plotpan', onPan).unbind('mousewheel', onScroll);
         }
 
         plot.hooks.bindEvents.push(bindEvents);
@@ -740,5 +765,4 @@
         'name': 'datastream',
         'version': '0.1'
     });
-
 })(jQuery);
