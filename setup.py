@@ -37,7 +37,7 @@ if __name__ == '__main__':
         zip_safe = False,
         install_requires = [
             'Django>=1.4',
-            'datastream>=0.1.1',
+            'datastream>=0.1.4',
             'django-tastypie>=0.9.11',
             'ujson>=1.19',
             'pytz>=2012h',
