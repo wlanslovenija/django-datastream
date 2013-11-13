@@ -22,20 +22,7 @@ h2 {
 }
 
 #content {
-    width: 600px;
-    margin-right: auto;
-    margin-left: auto;
-}
-
-#plots {
-    text-align: center;
-    margin-right: auto;
-    margin-left: auto;
-}
-
-footer {
-    font-size: 0.75em;
-    margin-top: 8em;
+    width: 100%;
 }
 
 a {
@@ -50,16 +37,24 @@ pre, code, textarea {
     font-family: "Lucida Console",Monaco,monospace;
 }
 
-#debug {
-    margin-top: 50px;
-    font-size: 10px;
+.json-key {
+    color: brown;
 }
 
-#debugTable {
-    border-collapse: collapse;
+.json-value {
+    color: navy;
 }
 
-#debugTable td, #debugTable th {
-    border: 1px solid black;
-    padding: 5px;
+.json-string {
+    color: olive;
+}
+
+#streams {
+    padding: 0;
+    list-style: none;
+}
+
+#streams li:hover {
+    background-color: lavender;
+    cursor: pointer;
 }

@@ -5,76 +5,20 @@
         <title>Datastream Test</title>
         <link rel="stylesheet" type="text/css" href="{% static "test_app/style.css" %}" media="screen"/>
         <script type="text/javascript" src="{% static "datastream/jquery/jquery.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/flot/jquery.flot.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/flot/jquery.flot.selection.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/flot/jquery.flot.navigate.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/flot/jquery.flot.crosshair.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/jquery/jquery.mousewheel.js" %}"></script>
-        <script type="text/javascript" src="{% static "datastream/js/datastream.js" %}"></script>
+        <script type="text/javascript" src="{% static "datastream/moment/moment.js" %}"></script>
+        <script type="text/javascript" src="{% static "datastream/assert/assert.js" %}"></script>
+        <script type="text/javascript" src="{% static "datastream/highstock/highstock.js" %}"></script>
+        <script type="text/javascript" src="{% static "test_app/code.js" %}"></script>
     </head>
     <body>
         <div id="content">
             <h1>Datastream Test</h1>
 
-            <p>Datastream plot has 2 modes:</p>
-            <ul>
-                <li>
-                    <b>Fixed stream</b> (default mode): in this mode each pixel
-                    represents one stream value.
-                </li>
-                <li>
-                    <b>Fixed interval</b> (alternative mode): when the user selects
-                    an interval the best granularity is computed based on 2
-                    guidelines: show as much information as possible, do not
-                    show much more points than the pixel width.
-                </li>
-            </ul>
-            <p>User actions:</p>
-            <ul>
-                <li>Left-click and drag: pan</li>
-                <li>Right-click and drag: zoom to the selected interval (change to
-                    mode 2)</li>
-                <li>Right-click: zoom-out (follow the zoom stack)</li>
-                <li>Scroll up and down: change granularity  (change to mode 1)</li>
-                <li>Scroll left and right: pan</li>
-            </ul>
-            <h2>Example 1: one value one pixel</h2>
-            <p>Default mode displays one value per pixel. Activated by default
-               or on scroll up / down.</p>
-            <p>
-                <select id="selectstream" width="200px"></select>
-                <button id="addstream">add stream</button>
-                <button id="addplot">add plot</button>
-                <span id="step"></span>
-            </p>
-            <div id="placeholder"></div>
-            <h2>Example 2: fixed interval</h2>
-            <p>Alternative mode of the datastream plot is to display a time series
-                in a fixed time interval. The mode is activated if you
-                specify the <i>from</i> setting or when you zoom to an interval
-                (right-click + drag).</p>
-            <p>
-                <select id="selectstream_alt" width="200px"></select>
-                <button id="addstream_alt">add stream</button>
-                <button id="addplot_alt">add plot</button>
-                <span id="step_alt"></span>
-            </p>
-            <div id="placeholder_alt"></div>
-            {% if debug %}
-                <div id="debug">
-                    <h3>DEBUG INFO</h3>
-                    <table id="debugTable">
-                        <tr>
-                            <td>Stream</td>
-                            <td>Granularity</td>
-                            <td>From</td>
-                            <td>To</td>
-                            <td>Elements</td>
-                        </tr>
-                    </table>
-                </div>
-            {% endif %}
+            <h2>Available Streams</h2>
+            <ul id="streams"></ul>
+
+            <h2>Plot</h2>
+            <div id="plot"></div>
         </div>
-        <script type="text/javascript" src="{% static "test_app/code.js" %}"></script>
     </body>
 </html>
