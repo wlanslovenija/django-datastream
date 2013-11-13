@@ -1,5 +1,6 @@
 from tastypie import fields
 
+
 class DatapointsField(fields.ApiField):
     """
     A datapoints field.
