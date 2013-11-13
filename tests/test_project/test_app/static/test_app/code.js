@@ -121,11 +121,23 @@ function tagsToObject(tags) {
 }
 
 function convertDatapoints(datapoints) {
-    result = []
+    line = []
+    range = []
     $.each(datapoints, function (i, datapoint) {
-        result.push([moment.utc(datapoint.t.m || datapoint.t).valueOf(), (datapoint.v.m || datapoint.v)]);
+        var t = moment.utc($.isPlainObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
+        if ($.isPlainObject(datapoint.v)) {
+            line.push([t, datapoint.v.m]);
+            range.push([t, datapoint.v.l, datapoint.v.u]);
+        }
+        else {
+            line.push([t, datapoint.v]);
+            range.push([t, datapoint.v, datapoint.v]);
+        }
     });
-    return result;
+    return {
+        'line': line,
+        'range': range
+    };
 }
 
 function reloadGraphData(event) {
@@ -157,7 +169,9 @@ function reloadGraphData(event) {
         }, function (data, textStatus, jqXHR) {
             assert.equal(data.id, stream.id);
 
-            plot.get('m-' + stream.id).setData(convertDatapoints(data.datapoints));
+            var datapoints = convertDatapoints(data.datapoints);
+            plot.get('line-' + stream.id).setData(datapoints.line);
+            plot.get('range-' + stream.id).setData(datapoints.range);
         });
     });
 }
@@ -169,6 +183,8 @@ function addPlotData(stream) {
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, stream.id);
 
+        var datapoints = convertDatapoints(data.datapoints);
+
         plot.addAxis({
             'id': 'axis-' + stream.id,
             'title': {
@@ -177,13 +193,32 @@ function addPlotData(stream) {
             'showEmpty': false
         });
         var series = plot.addSeries({
-            'id': 'm-' + stream.id,
+            'id': 'range-' + stream.id,
             'name': stream.tags.name,
             'yAxis': 'axis-' + stream.id,
-            'data': convertDatapoints(data.datapoints)
+            'type': 'arearange',
+            'lineWidth': 0,
+            'fillOpacity': 0.3,
+            'tooltip': {
+                'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
+                'valueDecimals': 3
+            },
+            'data': datapoints.range
         });
         // Match yAxis title color with series color
         series.yAxis.axisTitle.css({'color': series.color});
+        plot.addSeries({
+            'id': 'line-' + stream.id,
+            'name': stream.tags.name,
+            'linkedTo': 'range-' + stream.id,
+            'color': series.color,
+            'yAxis': 'axis-' + stream.id,
+            'tooltip': {
+                'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
+                'valueDecimals': 3
+            },
+            'data': datapoints.line
+        });
     });
 }
 
