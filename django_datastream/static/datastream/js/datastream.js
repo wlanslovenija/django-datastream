@@ -436,13 +436,13 @@
         var streams = [];
         var zoom_stack = [];
         var granularity = [
-            {'name': "Seconds",    'key': 's',   'span': 1},
-            {'name': "10 Seconds", 'key': '10s', 'span': 10},
-            {'name': "Minutes",    'key': 'm',   'span': 60},
-            {'name': "10 Minutes", 'key': '10m', 'span': 600},
-            {'name': "Hours",      'key': 'h',   'span': 3600},
-            {'name': "6 Hours",    'key': '6h',  'span': 21600},
-            {'name': "Days",       'key': 'd',   'span': 86400}
+            {'name': "Seconds",    'key': 's', 'span': 1},
+            {'name': "10 Seconds", 'key': 'S', 'span': 10},
+            {'name': "Minutes",    'key': 'm', 'span': 60},
+            {'name': "10 Minutes", 'key': 'M', 'span': 600},
+            {'name': "Hours",      'key': 'h', 'span': 3600},
+            {'name': "6 Hours",    'key': 'H', 'span': 21600},
+            {'name': "Days",       'key': 'd', 'span': 86400}
         ];
         var mode = 0;
 
