@@ -37,10 +37,11 @@ if __name__ == '__main__':
         zip_safe=False,
         install_requires=[
             'Django>=1.4',
-            'datastream>=0.2.2',
+            'datastream>=0.2.3',
             'django-tastypie>=0.9.12,<=0.10.0',
             'ujson>=1.33',
             'pytz>=2012h',
+            'mimeparse>=0.1.3',
         ],
         test_suite='tests.runtests.runtests',
     )
