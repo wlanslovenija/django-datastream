@@ -6,7 +6,15 @@ from django.utils import importlib
 
 from datastream import Datastream
 
-from . import signals
+try:
+    from django.db.models.constants import LOOKUP_SEP
+except ImportError:
+    # To support Django 1.4 we move to location where Django 1.5+ has constants
+    import sys
+    from django.db.models.sql import constants
+    import django.db.models
+    django.db.models.constants = constants
+    sys.modules['django.db.models.constants'] = django.db.models.constants
 
 datastream = None
 
@@ -29,7 +37,4 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
 
         backend = cls(**getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
 
-    def callback(stream_id, granularity, datapoint):
-        signals.new_datapoint.send(sender=datastream, stream_id=stream_id, granularity=granularity, datapoint=datapoint)
-
-    datastream = Datastream(backend, callback)
+    datastream = Datastream(backend)
