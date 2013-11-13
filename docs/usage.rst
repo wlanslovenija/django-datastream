@@ -74,7 +74,7 @@ Along with serving datastream API requests it can be also used as a replacement 
 management command`_ (but it does not `autoserve static files`_, you have to `collect static files`_
 beforehand, and does not autoreload on code changes). You run it in a similar way with::
 
-    ./manage.py rundataserver
+    ./manage.py runserver
 
 This is needed to support ``WAIT`` command. If you are not using it, you can serve Django in a standard way.
 
@@ -88,7 +88,7 @@ Demo web page
 
 For a demo web page, start mongo database, go to the tests folder and run::
 
-    ./manage.py dummydatastream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
+    ./manage.py dummystream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
 
 This runs a deamon that creates test stream data. Three data types are supported
 (int, float and enum). Rfange can be specified within brackets for int and float and
@@ -96,7 +96,7 @@ a list of values for the enum data type.
 
 Open new terminal window, cd to tests folder again and run mongo project::
 
-    ./manage.py rundataserver
+    ./manage.py runserver
 
 Open the `demo web page`_.
 

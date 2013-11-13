@@ -66,14 +66,14 @@ class Command(base.BaseCommand):
 
         for stream_id, types in streams:
             try:
-                t = iter(datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max, reverse=True)).next()['t']
+                t = datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max, reverse=True)[0]['t']
 
                 if t.tzinfo is None:
                     t = t.replace(tzinfo=pytz.utc)
 
                 if t > timestamp:
                     timestamp = t
-            except StopIteration:
+            except IndexError:
                 continue
 
         return timestamp
@@ -148,6 +148,7 @@ class Command(base.BaseCommand):
 
                     span_to = datetime.datetime.now(pytz.utc)
                     last_timestamp = self.last_timestamp(streams)
+
                     span_from = max(
                         span_to - datetime.timedelta(**{val: s}),
                         last_timestamp + datetime.timedelta(seconds=interval)
@@ -167,7 +168,7 @@ class Command(base.BaseCommand):
         else:
             raise base.CommandError("Invalid time span parameter. It should be one or two space-delimited values.")
 
-        if span_from is not None and span_to is not None:
+        if span_from is not None and span_to is not None and span_from <= span_to:
             if verbose > 1:
                 td = span_to - span_from
                 self.stdout.write("Appending %d values from %s to %s.\n" % (((td.seconds + td.days * 24 * 3600) // interval * len(streams)), span_from, span_to))
@@ -181,7 +182,7 @@ class Command(base.BaseCommand):
                 span_from += datetime.timedelta(seconds=interval)
 
             if verbose > 1:
-                self.stdout.write("Downsampling.\n")
+                self.stdout.write("Done. Downsampling.\n")
 
             datastream.downsample_streams(until=span_to)
 

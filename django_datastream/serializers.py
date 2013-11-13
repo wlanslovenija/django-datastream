@@ -11,7 +11,7 @@ class DatastreamSerializer(serializers.Serializer):
 
         options = options or {}
         data = self.to_simple(data, options)
-        return ujson.dumps(data)
+        return ujson.dumps(data, ensure_ascii=False)
 
     def from_json(self, content):
         """
