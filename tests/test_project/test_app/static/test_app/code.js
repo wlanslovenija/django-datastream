@@ -89,7 +89,7 @@ function initializePlot() {
             'events': {
                 'afterSetExtremes': reloadGraphData
             },
-            'minRange': width * 1000
+            'minRange': width * 1000 // TODO: Should this depend on possible granularity for the stream(s)?
         },
         'yAxis': [],
         'plotOptions': {
@@ -129,8 +129,6 @@ function convertDatapoints(datapoints) {
 }
 
 function reloadGraphData(event) {
-    console.log(event.min, event.max);
-
     granularity = granularities[0]
     start = event.min / 1000;
     end = event.max / 1000;
@@ -150,8 +148,6 @@ function reloadGraphData(event) {
     start = parseInt(Math.floor(start));
     end = parseInt(Math.floor(end));
 
-    console.log(interval, granularity);
-
     $.each(activeStreams, function (id, stream) {
         $.getJSON(stream.resource_uri, {
             'granularity': granularity.name,
@@ -161,7 +157,7 @@ function reloadGraphData(event) {
         }, function (data, textStatus, jqXHR) {
             assert.equal(data.id, stream.id);
 
-            plot.get(stream.id).setData(convertDatapoints(data.datapoints));
+            plot.get('m-' + stream.id).setData(convertDatapoints(data.datapoints));
         });
     });
 }
@@ -173,11 +169,21 @@ function addPlotData(stream) {
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, stream.id);
 
-        plot.addSeries({
-            'id': stream.id,
+        plot.addAxis({
+            'id': 'axis-' + stream.id,
+            'title': {
+                'text': stream.tags.unit
+            },
+            'showEmpty': false
+        });
+        var series = plot.addSeries({
+            'id': 'm-' + stream.id,
             'name': stream.tags.name,
+            'yAxis': 'axis-' + stream.id,
             'data': convertDatapoints(data.datapoints)
-        })
+        });
+        // Match yAxis title color with series color
+        series.yAxis.axisTitle.css({'color': series.color});
     });
 }
 
@@ -194,7 +200,7 @@ $(document).ready(function () {
             stream.tags = tagsToObject(stream.tags);
 
             $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
-                activeStreams[data.id] = stream;
+                activeStreams[stream.id] = stream;
                 addPlotData(stream);
                 $(this).remove();
             });
