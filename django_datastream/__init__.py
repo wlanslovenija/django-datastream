@@ -18,9 +18,9 @@ except ImportError:
 
 datastream = None
 
-# Load the backend as specified in configuration
-if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
-    backend = settings.DATASTREAM_BACKEND
+
+def init_datastream(datastream_backend, datastream_backend_settings):
+    backend = datastream_backend
 
     if isinstance(backend, basestring):
         i = backend.rfind('.')
@@ -35,6 +35,10 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
         except AttributeError:
             raise exceptions.ImproperlyConfigured('Module "%s" does not define a "%s" datastream backend' % (module, attr))
 
-        backend = cls(**getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))
+        backend = cls(**datastream_backend_settings)
 
-    datastream = Datastream(backend)
+    return Datastream(backend)
+
+# Load the backend as specified in configuration
+if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
+    datastream = init_datastream(settings.DATASTREAM_BACKEND, getattr(settings, 'DATASTREAM_BACKEND_SETTINGS', {}))

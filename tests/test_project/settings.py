@@ -12,12 +12,6 @@ ADMINS = (
 )
 
 MANAGERS = ADMINS
-
-MONGO_DATABASE_NAME = 'test_project'
-
-import mongoengine
-mongoengine.connect(MONGO_DATABASE_NAME)
-
 # We are not really using a relational database, but tests fail without
 # defining it because flush command is being run, which expects it
 DATABASES = {
@@ -45,6 +39,8 @@ AUTHENTICATION_BACKENDS = (
 )
 
 SESSION_ENGINE = 'mongoengine.django.sessions'
+
+TEST_RUNNER = 'django_datastream.test_runner.DatastreamSuiteRunner'
 
 # Absolute path to the directory static files should be collected to.
 # Don't put anything in this directory yourself; store your static files
@@ -108,7 +104,15 @@ INSTALLED_APPS = (
     'test_project.test_app',
 )
 
+USE_TZ = True
+
+MONGO_DATABASE_NAME = 'test_project'
+MONGO_DATABASE_OPTIONS = {
+    'tz_aware': USE_TZ,
+}
+
 DATASTREAM_BACKEND = 'datastream.backends.mongodb.Backend'
 DATASTREAM_BACKEND_SETTINGS = {
     'database_name': MONGO_DATABASE_NAME,
+    'tz_aware': USE_TZ,
 }

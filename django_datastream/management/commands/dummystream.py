@@ -55,6 +55,10 @@ class Command(base.BaseCommand):
             '--span', '-s', action='store', type='string', dest='span', default='',
             help="Time span: <span> time span until now (i.e. '7d'), or <from to> format 'yyyy-mm-ddThh:mm:ss' (i.e. '2007-03-04T12:00:00 2007-04-10T12:00:00')",
         ),
+        optparse.make_option(
+            '--no-real-time', action='store_true', dest='norealtime', default=False,
+            help="Just insert for the given time span without appending in real-time.",
+        ),
     )
 
     help = "Regularly append dummy datapoints to streams."
@@ -86,6 +90,7 @@ class Command(base.BaseCommand):
         flush = options.get('flush')
         demo = options.get('demo')
         span = options.get('span')
+        norealtime = options.get('norealtime')
 
         if nstreams is None and types is None and not demo and flush:
             datastream.delete_streams()
@@ -185,6 +190,9 @@ class Command(base.BaseCommand):
                 self.stdout.write("Done. Downsampling.\n")
 
             datastream.downsample_streams(until=span_to)
+
+        if norealtime:
+            return
 
         if verbose > 1:
             self.stdout.write("Appending real-time value(s) to stream(s) every %s seconds.\n" % interval)
