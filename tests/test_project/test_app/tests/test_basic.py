@@ -44,7 +44,7 @@ class BasicTest(test.TestCase):
         for i, stream in enumerate(response['objects']):
             tags = self.tagsToDict(stream['tags'])
 
-            self.assertEqual(tags['name'], 'stream_%d' % tags['stream_number'], tags['name'])
+            self.assertEqual(tags['name'], 'Stream %d' % tags['stream_number'], tags['name'])
             self.assertEqual(tags['foobar'], 'foobar')
             self.assertTrue('description' in tags, tags.get('description', None))
 

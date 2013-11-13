@@ -125,10 +125,16 @@ class Command(base.BaseCommand):
             else:
                 downsamplers = []
 
+            if types is not None:
+                type = types[i]
+            else:
+                type = ('int', '')
+
             stream_id = datastream.ensure_stream(
-                ({'name': 'stream_%d' % i},),
+                ({'name': 'Stream %d' % i},),
                 (
                     'foobar',
+                    {'unit': 'Type: %s, range: (%s)' % type},
                     {'stream_number': i},
                     {'description': lorem_ipsum.paragraph()},
                 ),
@@ -136,10 +142,7 @@ class Command(base.BaseCommand):
                 datastream.Granularity.Seconds,
             )
 
-            if types is not None:
-                streams.append((stream_id, types[i]))
-            else:
-                streams.append((stream_id, ('int', '')))
+            streams.append((stream_id, type))
 
         span = span.split(' ')
         if len(span) == 1:
