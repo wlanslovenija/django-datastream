@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
-import datetime, urllib
+import datetime
+import urllib
 
 import pytz
 
@@ -9,11 +10,14 @@ from tastypie import bundle, exceptions, fields, http, paginator, resources
 from . import datastream, serializers
 from datastream import exceptions as datastream_exceptions
 
+
 class InvalidGranularity(exceptions.BadRequest):
     pass
 
+
 class InvalidDownsampler(exceptions.BadRequest):
     pass
+
 
 class InvalidRange(exceptions.BadRequest):
     pass
@@ -27,6 +31,7 @@ QUERY_VALUE_DOWNSAMPLERS = 'v'
 QUERY_TIME_DOWNSAMPLERS = 't'
 QUERY_REVERSE = 'r'
 
+
 class DatapointsField(fields.ApiField):
     """
     A datapoints field.
@@ -34,6 +39,7 @@ class DatapointsField(fields.ApiField):
 
     dehydrated_type = 'datapoints'
     help_text = "A list of datapoints."
+
 
 class Paginator(paginator.Paginator):
     def get_slice(self, limit, offset):
@@ -95,6 +101,7 @@ class Paginator(paginator.Paginator):
             raise exceptions.BadRequest("Invalid offset '%s' provided. Please provide an integer >= 0.", offset)
 
         return offset
+
 
 class StreamResource(resources.Resource):
     class Meta:

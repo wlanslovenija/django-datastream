@@ -1,4 +1,8 @@
-import datetime, optparse, random, re, time
+import datetime
+import optparse
+import random
+import re
+import time
 
 from django.core.management import base
 from django.contrib.webdesign import lorem_ipsum
@@ -23,6 +27,7 @@ TYPES = {
     'float': (float, random.uniform, '0,100'),
     'enum': (str, lambda *x: random.choice(x), 'a,b,c'),
 }
+
 
 class Command(base.BaseCommand):
     option_list = base.BaseCommand.option_list + (
@@ -141,7 +146,7 @@ class Command(base.BaseCommand):
                     except ValueError:
                         raise base.CommandError("Time span value must be an integer.")
 
-                    span_to =  datetime.datetime.now(pytz.utc)
+                    span_to = datetime.datetime.now(pytz.utc)
                     last_timestamp = self.last_timestamp(streams)
                     span_from = max(
                         span_to - datetime.timedelta(**{val: s}),

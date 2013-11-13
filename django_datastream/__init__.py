@@ -16,7 +16,7 @@ if getattr(settings, 'DATASTREAM_BACKEND', None) is not None:
 
     if isinstance(backend, basestring):
         i = backend.rfind('.')
-        module, attr = backend[:i], backend[i+1:]
+        module, attr = backend[:i], backend[i + 1:]
 
         try:
             mod = importlib.import_module(module)

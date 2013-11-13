@@ -2,6 +2,7 @@ from tastypie import serializers
 
 import ujson
 
+
 class DatastreamSerializer(serializers.Serializer):
     def to_json(self, data, options=None):
         """
