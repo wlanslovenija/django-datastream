@@ -181,32 +181,14 @@ function convertDatapoint(datapoint) {
     }
 }
 
-function convertDatapoints(datapoints, start, end) {
+function convertDatapoints(datapoints) {
     var line = [];
     var range = [];
-
-    if (typeof start !== 'undefined') {
-        var firstDatapoint = convertDatapoint(datapoints[0])
-        if (firstDatapoint.range[0] > start) {
-            line.push([start, null])
-            range.push([start, null, null])
-        }
-    }
-
     $.each(datapoints, function (i, datapoint) {
         datapoint = convertDatapoint(datapoint);
         line.push(datapoint.line);
         range.push(datapoint.range);
     });
-
-    if (typeof end !== 'undefined') {
-        var lastDatapoint = convertDatapoint(datapoints[datapoints.length - 1])
-        if (lastDatapoint.range[0] < end) {
-            line.push([end, null])
-            range.push([end, null, null])
-        }
-    }
-
     return {
         'line': line,
         'range': range
@@ -238,7 +220,7 @@ function computeRange(min, max) {
     range.end += range.granularity.duration / 2;
 
     range.start = parseInt(Math.floor(range.start));
-    range.end = parseInt(Math.floor(range.end));
+    range.end = parseInt(Math.ceil(range.end));
 
     return range;
 }
@@ -280,7 +262,7 @@ function reloadGraphData(event) {
 
             updateKnownMaxRange(data);
 
-            var datapoints = convertDatapoints(data.datapoints, range.start * 1000, range.end * 1000);
+            var datapoints = convertDatapoints(data.datapoints);
             plot.get('line-' + stream.id).setData(datapoints.line);
             plot.get('range-' + stream.id).setData(datapoints.range);
 
@@ -306,7 +288,7 @@ function addPlotData(stream) {
 
         updateKnownMaxRange(data);
 
-        var datapoints = convertDatapoints(data.datapoints, range.start * 1000, range.end * 1000);
+        var datapoints = convertDatapoints(data.datapoints);
 
         plot.addAxis({
             'id': 'axis-' + stream.id,
