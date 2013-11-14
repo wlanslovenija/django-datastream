@@ -20,9 +20,9 @@ function replacer(match, pIndent, pKey, pVal, pEnd) {
     return r + (pEnd || '');
 }
 
-width = 100;
+var width = 100;
 
-granularities = [
+var granularities = [
     {'name': 'days', 'duration': 86400},
     {'name': '6hours', 'duration': 21600},
     {'name': 'hours', 'duration': 3600},
@@ -48,6 +48,9 @@ function initializePlot() {
             'series': {
                 'data': [] // We will set data manually
             }
+        },
+        'scrollbar': {
+            'liveRedraw': false
         },
         'legend': {
             'enabled': true,
@@ -172,9 +175,33 @@ function computeRange(min, max) {
     return range;
 }
 
+var loadingShown = 0;
+
+function showLoading() {
+    assert(loadingShown >= 0);
+
+    loadingShown++;
+    if (loadingShown === 1) {
+        plot.showLoading("Loading data from server...");
+    }
+}
+
+function hideLoading() {
+    assert(loadingShown > 0);
+
+    loadingShown--;
+    if (loadingShown === 0) {
+        plot.hideLoading();
+    }
+}
+
 function reloadGraphData(event) {
     var range = computeRange(event.min, event.max);
-    $.each(activeStreams, function (id, stream) {
+    var streams = $.map(activeStreams, function (stream, id) {
+        return stream;
+    });
+    showLoading();
+    async.each(streams, function (stream, cb) {
         $.getJSON(stream.resource_uri, {
             'granularity': range.granularity.name,
             'limit': 10000,
@@ -186,12 +213,19 @@ function reloadGraphData(event) {
             var datapoints = convertDatapoints(data.datapoints);
             plot.get('line-' + stream.id).setData(datapoints.line);
             plot.get('range-' + stream.id).setData(datapoints.range);
+
+            cb();
+        }).fail(function () {
+            cb(arguments);
         });
+    }, function (err) {
+        hideLoading();
     });
 }
 
 function addPlotData(stream) {
     var range = computeRange(plot.xAxis[0].userMin, plot.xAxis[0].userMax);
+    showLoading();
     $.getJSON(stream.resource_uri, {
         'granularity': range.granularity.name,
         'limit': 10000,
@@ -241,11 +275,13 @@ function addPlotData(stream) {
             // TODO: Should we set some better data for navigator?
             navigator.setData(datapoints.line);
         }
+    }).always(function () {
+        hideLoading();
     });
 }
 
-activeStreams = {};
-plot = null;
+var activeStreams = {};
+var plot = null;
 
 $(document).ready(function () {
     $('#streams').empty();
