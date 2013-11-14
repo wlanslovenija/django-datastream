@@ -32,6 +32,38 @@ var granularities = [
     {'name': 'seconds', 'duration': 1}
 ]
 
+function firstDefined(obj) {
+    for (var i = 1; i < arguments.length; i++) {
+        if (typeof obj[arguments[i]] !== 'undefined') {
+            return obj[arguments[i]];
+        }
+    }
+}
+
+function updateKnownMaxRange(stream) {
+    assert(stream.id in activeStreams);
+
+    var activeStream = activeStreams[stream.id];
+
+    if (!('range' in activeStream)) {
+        activeStream.range = {};
+    }
+
+    var firstDatapoint = stream.datapoints[0];
+    var lastDatapoint = stream.datapoints[stream.datapoints.length - 1];
+
+    // We go through downsampled timestamps in such order to maximize the range
+    var start = $.isPlainObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+    var end = $.isPlainObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
+
+    if ((typeof start !== 'undefined') && ((typeof activeStream.range.start === 'undefined') || (moment.utc(start).valueOf() < activeStream.range.start))) {
+        activeStream.range.start = moment.utc(start).valueOf();
+    }
+    if ((typeof end !== 'undefined') && ((typeof activeStream.range.end === 'undefined') || (moment.utc(end).valueOf() > activeStream.range.end))) {
+        activeStream.range.end = moment.utc(end).valueOf();
+    }
+}
+
 function initializePlot() {
     plot = new Highcharts.StockChart({
         'chart': {
@@ -210,6 +242,8 @@ function reloadGraphData(event) {
         }, function (data, textStatus, jqXHR) {
             assert.equal(data.id, stream.id);
 
+            updateKnownMaxRange(data);
+
             var datapoints = convertDatapoints(data.datapoints);
             plot.get('line-' + stream.id).setData(datapoints.line);
             plot.get('range-' + stream.id).setData(datapoints.range);
@@ -233,6 +267,8 @@ function addPlotData(stream) {
         'end': range.end
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, stream.id);
+
+        updateKnownMaxRange(data);
 
         var datapoints = convertDatapoints(data.datapoints);
 
