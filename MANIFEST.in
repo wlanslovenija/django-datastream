@@ -1,0 +1,6 @@
+recursive-include django_datastream/static *
+recursive-include tests *.py
+include docs/Makefile docs/*.py docs/*.rst
+include COPYING
+include LICENSE
+include *.py *.txt *.rst
