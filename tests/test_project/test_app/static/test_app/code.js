@@ -49,6 +49,10 @@ function updateKnownMaxRange(stream) {
         activeStream.range = {};
     }
 
+    if (stream.datapoints.length === 0) {
+        return;
+    }
+
     var firstDatapoint = stream.datapoints[0];
     var lastDatapoint = stream.datapoints[stream.datapoints.length - 1];
 
@@ -129,6 +133,7 @@ function initializePlot() {
             'events': {
                 'afterSetExtremes': reloadGraphData
             },
+            'ordinal': false,
             'minRange': width * 1000 // TODO: Should this depend on possible granularity for the stream(s)?
         },
         'yAxis': [],
@@ -160,20 +165,48 @@ function tagsToObject(tags) {
     return result;
 }
 
-function convertDatapoints(datapoints) {
-    line = []
-    range = []
+function convertDatapoint(datapoint) {
+    var t = moment.utc($.isPlainObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
+    if ($.isPlainObject(datapoint.v)) {
+        return {
+            'line': [t, datapoint.v.m],
+            'range': [t, datapoint.v.l, datapoint.v.u]
+        }
+    }
+    else {
+        return {
+            'line': [t, datapoint.v],
+            'range': [t, datapoint.v, datapoint.v]
+        }
+    }
+}
+
+function convertDatapoints(datapoints, start, end) {
+    var line = [];
+    var range = [];
+
+    if (typeof start !== 'undefined') {
+        var firstDatapoint = convertDatapoint(datapoints[0])
+        if (firstDatapoint.range[0] > start) {
+            line.push([start, null])
+            range.push([start, null, null])
+        }
+    }
+
     $.each(datapoints, function (i, datapoint) {
-        var t = moment.utc($.isPlainObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
-        if ($.isPlainObject(datapoint.v)) {
-            line.push([t, datapoint.v.m]);
-            range.push([t, datapoint.v.l, datapoint.v.u]);
-        }
-        else {
-            line.push([t, datapoint.v]);
-            range.push([t, datapoint.v, datapoint.v]);
-        }
+        datapoint = convertDatapoint(datapoint);
+        line.push(datapoint.line);
+        range.push(datapoint.range);
     });
+
+    if (typeof end !== 'undefined') {
+        var lastDatapoint = convertDatapoint(datapoints[datapoints.length - 1])
+        if (lastDatapoint.range[0] < end) {
+            line.push([end, null])
+            range.push([end, null, null])
+        }
+    }
+
     return {
         'line': line,
         'range': range
@@ -247,7 +280,7 @@ function reloadGraphData(event) {
 
             updateKnownMaxRange(data);
 
-            var datapoints = convertDatapoints(data.datapoints);
+            var datapoints = convertDatapoints(data.datapoints, range.start * 1000, range.end * 1000);
             plot.get('line-' + stream.id).setData(datapoints.line);
             plot.get('range-' + stream.id).setData(datapoints.range);
 
@@ -273,7 +306,7 @@ function addPlotData(stream) {
 
         updateKnownMaxRange(data);
 
-        var datapoints = convertDatapoints(data.datapoints);
+        var datapoints = convertDatapoints(data.datapoints, range.start * 1000, range.end * 1000);
 
         plot.addAxis({
             'id': 'axis-' + stream.id,
