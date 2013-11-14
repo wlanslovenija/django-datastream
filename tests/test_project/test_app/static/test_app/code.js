@@ -76,12 +76,15 @@ function initializePlot() {
             'enabled': false
         },
         'navigator': {
+            'enabled': true,
             'adaptToUpdatedData': false,
             'series': {
+                'id': 'navigator',
                 'data': [] // We will set data manually
             }
         },
         'scrollbar': {
+            'enabled': true,
             'liveRedraw': false
         },
         'legend': {
@@ -306,10 +309,16 @@ function addPlotData(stream) {
             },
             'data': datapoints.line
         });
-        var navigator = plot.get('highcharts-navigator-series');
+        var navigator = plot.get('navigator');
         if (navigator.data.length === 0) {
             // TODO: Should we set some better data for navigator?
             navigator.setData(datapoints.line);
+            // Without the following range selector is not displayed until first zooming
+            // We cannot just call plot.xAxis[0].setExtremes(), for some reason it does
+            // not correctly initialize the selector to cover the whole range but it leaves
+            // few pixles, so we pass extremes ourselves
+            var unionExtremes = (plot.scroller && plot.scroller.getUnionExtremes()) || plot.xAxis[0] || {};
+            plot.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
         }
     }).always(function () {
         hideLoading();
