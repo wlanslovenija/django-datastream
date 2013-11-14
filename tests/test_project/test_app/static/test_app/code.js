@@ -45,7 +45,9 @@ function initializePlot() {
         },
         'navigator': {
             'adaptToUpdatedData': false,
-            'baseSeries': 0
+            'series': {
+                'data': [] // We will set data manually
+            }
         },
         'legend': {
             'enabled': true,
@@ -140,32 +142,44 @@ function convertDatapoints(datapoints) {
     };
 }
 
-function reloadGraphData(event) {
-    granularity = granularities[0]
-    start = event.min / 1000;
-    end = event.max / 1000;
+function computeRange(min, max) {
+    var range = {
+        'granularity': granularities[0]
+    }
 
-    interval = end - start
+    if (!$.isNumeric(min) || !$.isNumeric(min)) {
+        return range;
+    }
 
-    $.each(granularities, function (i, g) {
-        if (interval / g.duration > width) {
-            granularity = g;
+    range.start = min / 1000;
+    range.end = max / 1000;
+
+    var interval = range.end - range.start;
+
+    $.each(granularities, function (i, granularity) {
+        if (interval / granularity.duration > width) {
+            range.granularity = granularity;
             return false;
         }
     });
 
-    start -= granularity.duration / 2;
-    end += granularity.duration / 2;
+    range.start -= range.granularity.duration / 2;
+    range.end += range.granularity.duration / 2;
 
-    start = parseInt(Math.floor(start));
-    end = parseInt(Math.floor(end));
+    range.start = parseInt(Math.floor(range.start));
+    range.end = parseInt(Math.floor(range.end));
 
+    return range;
+}
+
+function reloadGraphData(event) {
+    var range = computeRange(event.min, event.max);
     $.each(activeStreams, function (id, stream) {
         $.getJSON(stream.resource_uri, {
-            'granularity': granularity.name,
+            'granularity': range.granularity.name,
             'limit': 10000,
-            'start': start,
-            'end': end
+            'start': range.start,
+            'end': range.end
         }, function (data, textStatus, jqXHR) {
             assert.equal(data.id, stream.id);
 
@@ -177,9 +191,12 @@ function reloadGraphData(event) {
 }
 
 function addPlotData(stream) {
+    var range = computeRange(plot.xAxis[0].userMin, plot.xAxis[0].userMax);
     $.getJSON(stream.resource_uri, {
-        'granularity': 'days',
-        'limit': 10000
+        'granularity': range.granularity.name,
+        'limit': 10000,
+        'start': range.start,
+        'end': range.end
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, stream.id);
 
@@ -219,6 +236,11 @@ function addPlotData(stream) {
             },
             'data': datapoints.line
         });
+        var navigator = plot.get('highcharts-navigator-series');
+        if (navigator.data.length === 0) {
+            // TODO: Should we set some better data for navigator?
+            navigator.setData(datapoints.line);
+        }
     });
 }
 
