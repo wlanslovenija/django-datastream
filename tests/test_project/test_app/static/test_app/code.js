@@ -134,7 +134,7 @@ function initializePlot() {
                 'afterSetExtremes': reloadGraphData
             },
             'ordinal': false,
-            'minRange': width * 1000 // TODO: Should this depend on possible granularity for the stream(s)?
+            'minRange': width * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
         },
         'yAxis': [],
         'plotOptions': {
