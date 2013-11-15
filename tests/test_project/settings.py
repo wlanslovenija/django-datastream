@@ -116,3 +116,5 @@ DATASTREAM_BACKEND_SETTINGS = {
     'database_name': MONGO_DATABASE_NAME,
     'tz_aware': USE_TZ,
 }
+
+TASTYPIE_DEFAULT_FORMATS = ('json', 'jsonp', 'xml')
