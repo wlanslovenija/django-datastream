@@ -20,7 +20,9 @@ function replacer(match, pIndent, pKey, pVal, pEnd) {
     return r + (pEnd || '');
 }
 
-var width = 100;
+// TODO: This curently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
+// TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
+var MAX_POINTS_NUMBER = 300;
 
 var granularities = [
     {'name': 'days', 'duration': 86400},
@@ -134,7 +136,7 @@ function initializePlot() {
                 'afterSetExtremes': reloadGraphData
             },
             'ordinal': false,
-            'minRange': width * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
+            'minRange': MAX_POINTS_NUMBER * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
         },
         'yAxis': [],
         'plotOptions': {
@@ -204,20 +206,22 @@ function computeRange(min, max) {
         return range;
     }
 
+    // In JavaScript timestamps are in miliseconds, but server sides uses them in seconds
     range.start = min / 1000;
     range.end = max / 1000;
 
     var interval = range.end - range.start;
 
     $.each(granularities, function (i, granularity) {
-        if (interval / granularity.duration > width) {
-            range.granularity = granularity;
+        if (interval / granularity.duration > MAX_POINTS_NUMBER) {
             return false;
         }
+        range.granularity = granularity;
     });
 
-    range.start -= range.granularity.duration / 2;
-    range.end += range.granularity.duration / 2;
+    // We enlarge range for 10 % in each direction
+    range.start -= interval * 0.1;
+    range.end += interval * 0.1;
 
     range.start = parseInt(Math.floor(range.start));
     range.end = parseInt(Math.ceil(range.end));
