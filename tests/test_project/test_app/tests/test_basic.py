@@ -71,7 +71,7 @@ class BasicTest(test.TestCase):
             u'end': None,
             u'reverse': False,
             u'end_exclusive': None,
-            u'start': u'0001-01-01T00:00:00',
+            u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
             u'granularity': u'seconds',
             u'time_downsamplers': None,
             u'start_exclusive': None,
