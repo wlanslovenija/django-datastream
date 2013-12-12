@@ -260,8 +260,9 @@ Stream.prototype.loadInitialData = function () {
         // Use lowest granularity and no bounds to get initial data
         'granularity': GRANULARITIES[0].name,
         // We want to get all we can, we are loading days so it should not be so bad
-        'limit': MAX_DETAIL_LIMIT
-        // TODO: Limit time and value downsamplers
+        'limit': MAX_DETAIL_LIMIT,
+        'value_downsamplers': self.valueDownsamplers(true),
+        'time_downsamplers': self.timeDownsamplers(true)
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, self.id);
 
@@ -367,6 +368,18 @@ Stream.prototype.computeRange = function (min, max) {
     return range;
 };
 
+Stream.prototype.valueDownsamplers = function (initial) {
+    var self = this;
+
+    return _.union(self.tags.visualization.value_downsamplers, initial ? ['mean'] : [])
+};
+
+Stream.prototype.timeDownsamplers = function (initial) {
+    var self = this;
+
+    return _.union(self.tags.visualization.time_downsamplers, initial ? ['first', 'last'] : [])
+};
+
 Stream.prototype.loadData = function (event) {
     var self = this;
 
@@ -377,8 +390,9 @@ Stream.prototype.loadData = function (event) {
         'granularity': range.granularity.name,
         'limit': 1000, // TODO: How much exactly do we want?
         'start': range.start,
-        'end': range.end
-        // TODO: Limit time and value downsamplers
+        'end': range.end,
+        'value_downsamplers': self.valueDownsamplers(),
+        'time_downsamplers': self.timeDownsamplers()
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, self.id);
 
@@ -454,15 +468,19 @@ Page.prototype.updateKnownMaxRange = function (data) {
 var page = new Page();
 
 $(document).ready(function () {
+    $.ajaxSetup({
+        'traditional': true
+    });
+
+    $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
+        console.error(event, jqXHR, ajaxSettings, thrownError);
+    });
+
     // TODO: Will load only the first page of streams
     // TODO: Allow some way of filtering streams
     $.getJSON('/api/v1/stream/', function (data, textStatus, jqXHR) {
         _.each(data.objects, function (stream, i) {
             page.newStream(stream);
         });
-    });
-
-    $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
-        console.error(event, jqXHR, ajaxSettings, thrownError);
     });
 });
