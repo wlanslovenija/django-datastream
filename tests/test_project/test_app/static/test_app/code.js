@@ -129,10 +129,23 @@ function Stream(stream) {
         throw new Error("Unsupported combination of type and value downsamplers");
     }
 
-    self.initializeChart(function () {
+    self.getChart(function () {
         self.loadInitialData();
     });
 }
+
+Stream.prototype.getChart = function (callback) {
+    var self = this;
+
+    var existing = page.isWith(self);
+    if (existing) {
+        self.chart = existing.chart;
+        if (callback) callback();
+    }
+    else {
+        self.initializeChart(callback);
+    }
+};
 
 Stream.prototype.initializeChart = function (callback) {
     var self = this;
@@ -574,6 +587,37 @@ Page.prototype.updateKnownMaxRange = function (data) {
     if (changed && self.minRange !== null && self.maxRange !== null) {
         self._setExtremes(self.minRange, self.maxRange, 'navigator-x-axis');
     }
+};
+
+Page.prototype.matchWith = function (a, b) {
+    var self = this;
+
+    if (!a.tags.visualization.with) return false;
+
+    if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
+
+    if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
+        console.warning("Streams matched, but incompatible Y axis.", a, b);
+        return false;
+    }
+
+    return true;
+};
+
+Page.prototype.isWith = function (withStream) {
+    var self = this;
+
+    var match = null;
+
+    _.each(self.streams, function (stream, id) {
+        if (match) return;
+
+        if (self.matchWith(stream, withStream) || self.matchWith(withStream, stream)) {
+            match = stream;
+        }
+    });
+
+    return match;
 };
 
 var page = new Page();
