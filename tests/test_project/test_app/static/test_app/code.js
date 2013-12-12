@@ -128,7 +128,7 @@ function updateKnownMaxRange(stream) {
     }
 }
 
-function initializePlot() {
+function initializeChart() {
     new Highcharts.StockChart({
         'chart': {
             'renderTo': 'chart',
@@ -325,7 +325,7 @@ function reloadGraphData(event) {
     });
 }
 
-function addPlotData(stream) {
+function addChartData(stream) {
     var range = computeRange(chart.xAxis[0].userMin, chart.xAxis[0].userMax);
     showLoading();
     $.getJSON(stream.resource_uri, {
@@ -419,7 +419,7 @@ $(document).ready(function () {
 
             $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
                 streams[stream.id] = stream;
-                addPlotData(stream);
+                addChartData(stream);
                 $(this).remove();
             });
         });
@@ -429,5 +429,5 @@ $(document).ready(function () {
         console.error(event, jqXHR, ajaxSettings, thrownError);
     });
 
-    initializePlot();
+    initializeChart();
 });
