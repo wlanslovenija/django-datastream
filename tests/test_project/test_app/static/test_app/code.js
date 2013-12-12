@@ -101,9 +101,9 @@ function firstDefined(obj) {
 }
 
 function updateKnownMaxRange(stream) {
-    assert(stream.id in activeStreams);
+    assert(stream.id in streams);
 
-    var activeStream = activeStreams[stream.id];
+    var activeStream = streams[stream.id];
 
     if (!('range' in activeStream)) {
         activeStream.range = {};
@@ -300,7 +300,7 @@ function hideLoading() {
 
 function reloadGraphData(event) {
     var range = computeRange(event.min, event.max);
-    var streams = $.map(activeStreams, function (stream, id) {
+    var streams = $.map(streams, function (stream, id) {
         return stream;
     });
     showLoading();
@@ -410,7 +410,7 @@ function addPlotData(stream) {
     });
 }
 
-var activeStreams = {};
+var streams = {};
 var plot = null;
 
 $(document).ready(function () {
@@ -418,10 +418,10 @@ $(document).ready(function () {
 
     $.getJSON('/api/v1/stream/', function (data, textStatus, jqXHR) {
         $.each(data.objects, function (i, stream) {
-            if (data.id in activeStreams) return;
+            if (data.id in streams) return;
 
             $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
-                activeStreams[stream.id] = stream;
+                streams[stream.id] = stream;
                 addPlotData(stream);
                 $(this).remove();
             });
