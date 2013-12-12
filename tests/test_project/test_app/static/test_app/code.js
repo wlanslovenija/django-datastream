@@ -86,6 +86,9 @@ function Stream(stream) {
 
     _.extend(self, stream);
 
+    self.lastRangeStart = null;
+    self.lastRangeEnd = null;
+
     self.initializeChart(function () {
         self.loadInitialData();
     });
@@ -393,6 +396,11 @@ Stream.prototype.loadData = function (event) {
 
     var range = self.computeRange(event.min, event.max);
 
+    if (range.start === self.lastRangeStart && range.end === self.lastRangeEnd) {
+        // Nothing really changed
+        return;
+    }
+
     self.showLoading();
     $.getJSON(self.resource_uri, {
         'granularity': range.granularity.name,
@@ -403,6 +411,9 @@ Stream.prototype.loadData = function (event) {
         'time_downsamplers': self.timeDownsamplers()
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, self.id);
+
+        self.lastRangeStart = range.start;
+        self.lastRangeEnd = range.end;
 
         // TODO: Convert based on visualization tags
         var datapoints = self.convertDatapoints(data.datapoints);
