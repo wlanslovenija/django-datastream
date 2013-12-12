@@ -131,7 +131,7 @@ function updateKnownMaxRange(stream) {
 function initializePlot() {
     new Highcharts.StockChart({
         'chart': {
-            'renderTo': 'plot',
+            'renderTo': 'chart',
             'type': 'spline',
             'zoomType': 'x',
             'borderRadius': 10
@@ -210,9 +210,9 @@ function initializePlot() {
             }
         },
         'series': []
-    }, function (p) {
-        // Store initialized plot to the global variable
-        plot = p;
+    }, function (c) {
+        // Store initialized chart to the global variable
+        chart = c;
     });
 }
 
@@ -285,7 +285,7 @@ function showLoading() {
 
     loadingShown++;
     if (loadingShown === 1) {
-        plot.showLoading("Loading data from server...");
+        chart.showLoading("Loading data from server...");
     }
 }
 
@@ -313,8 +313,8 @@ function reloadGraphData(event) {
             updateKnownMaxRange(data);
 
             var datapoints = convertDatapoints(data.datapoints);
-            plot.get('line-' + stream.id).setData(datapoints.line);
-            plot.get('range-' + stream.id).setData(datapoints.range);
+            chart.get('line-' + stream.id).setData(datapoints.line);
+            chart.get('range-' + stream.id).setData(datapoints.range);
 
             cb();
         }).fail(function () {
@@ -326,7 +326,7 @@ function reloadGraphData(event) {
 }
 
 function addPlotData(stream) {
-    var range = computeRange(plot.xAxis[0].userMin, plot.xAxis[0].userMax);
+    var range = computeRange(chart.xAxis[0].userMin, chart.xAxis[0].userMax);
     showLoading();
     $.getJSON(stream.resource_uri, {
         'granularity': range.granularity.name,
@@ -340,7 +340,7 @@ function addPlotData(stream) {
 
         var datapoints = convertDatapoints(data.datapoints);
 
-        plot.addAxis({
+        chart.addAxis({
             'id': 'axis-' + stream.id,
             'title': {
                 // TODO: Automatically prefx unit if provided
@@ -348,7 +348,7 @@ function addPlotData(stream) {
             },
             'showEmpty': false
         });
-        var series = plot.addSeries({
+        var series = chart.addSeries({
             'id': 'range-' + stream.id,
             'streamId': stream.id, // Our own option
             'name': stream.tags.title,
@@ -375,7 +375,7 @@ function addPlotData(stream) {
         });
         // Match yAxis title color with series color
         series.yAxis.axisTitle.css({'color': series.color});
-        plot.addSeries({
+        chart.addSeries({
             'id': 'line-' + stream.id,
             'streamId': stream.id, // Our own option
             'name': stream.tags.title,
@@ -388,11 +388,11 @@ function addPlotData(stream) {
             },
             'data': datapoints.line
         });
-        var navigator = plot.get('navigator');
-        plot.addAxis(_.extend({}, navigator.yAxis.options, {
+        var navigator = chart.get('navigator');
+        chart.addAxis(_.extend({}, navigator.yAxis.options, {
             'id': 'navigator-y-axis-' + stream.id
         }));
-        plot.addSeries(_.extend({}, navigator.options, {
+        chart.addSeries(_.extend({}, navigator.options, {
             'id': 'navigator-' + stream.id,
             'streamId': stream.id, // Our own option
             'color': series.color,
@@ -400,15 +400,15 @@ function addPlotData(stream) {
             'yAxis': 'navigator-y-axis-' + stream.id
         }));
         // TODO: Improve/fix this
-        var unionExtremes = (plot.scroller && plot.scroller.getUnionExtremes()) || plot.xAxis[0] || {};
-        plot.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
+        var unionExtremes = (chart.scroller && chart.scroller.getUnionExtremes()) || chart.xAxis[0] || {};
+        chart.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
     }).always(function () {
         hideLoading();
     });
 }
 
 var streams = {};
-var plot = null;
+var chart = null;
 
 $(document).ready(function () {
     $('#streams').empty();
