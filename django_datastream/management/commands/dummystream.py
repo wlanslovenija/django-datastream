@@ -130,14 +130,29 @@ class Command(base.BaseCommand):
             else:
                 type = ('int', '')
 
+            visualization_value_downsamplers = []
+            for downsampler in ['mean', 'min', 'max']:
+                if downsampler in downsamplers:
+                    visualization_value_downsamplers.append(downsampler)
+
+            type_constructor, random_function, default_domain = TYPES[type[0]]
+            domain = type[1] or default_domain
+            domain_range = map(type_constructor, domain.split(','))
+
             stream_id = datastream.ensure_stream(
-                ({'name': 'Stream %d' % i},),
-                (
-                    'foobar',
-                    {'unit': 'Type: %s, range: (%s)' % type},
-                    {'stream_number': i},
-                    {'description': lorem_ipsum.paragraph()},
-                ),
+                {'title': 'Stream %d' % i},
+                {
+                    'description': lorem_ipsum.paragraph(),
+                    'unit_description': 'random, domain: %s' % domain,
+                    'stream_number': i,
+                    'visualization': {
+                        'type': 'state' if type is 'enum' else 'line',
+                        'hidden': False,
+                        'value_downsamplers': visualization_value_downsamplers,
+                        'time_downsamplers': ['mean'],
+                        'minimum': domain_range[0] if domain_range[0] == 0 else None
+                    },
+                },
                 downsamplers,
                 datastream.Granularity.Seconds,
             )

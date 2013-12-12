@@ -154,19 +154,6 @@ function initializePlot() {
     });
 }
 
-function tagsToObject(tags) {
-    result = {};
-    $.each(tags, function (i, tag) {
-        if ($.isPlainObject(tag)) {
-            $.extend(result, tag);
-        }
-        else {
-            result[tag] = tag;
-        }
-    });
-    return result;
-}
-
 function convertDatapoint(datapoint) {
     var t = moment.utc($.isPlainObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
     if ($.isPlainObject(datapoint.v)) {
@@ -297,13 +284,14 @@ function addPlotData(stream) {
         plot.addAxis({
             'id': 'axis-' + stream.id,
             'title': {
-                'text': stream.tags.unit
+                // TODO: Automatically prefx unit if provided
+                'text': [(stream.tags.unit || ''), (stream.tags.unit_description || '')].join(' ')
             },
             'showEmpty': false
         });
         var series = plot.addSeries({
             'id': 'range-' + stream.id,
-            'name': stream.tags.name,
+            'name': stream.tags.title,
             'yAxis': 'axis-' + stream.id,
             'type': 'arearange',
             'lineWidth': 0,
@@ -318,7 +306,7 @@ function addPlotData(stream) {
         series.yAxis.axisTitle.css({'color': series.color});
         plot.addSeries({
             'id': 'line-' + stream.id,
-            'name': stream.tags.name,
+            'name': stream.tags.title,
             'linkedTo': 'range-' + stream.id,
             'color': series.color,
             'yAxis': 'axis-' + stream.id,
@@ -353,8 +341,6 @@ $(document).ready(function () {
     $.getJSON('/api/v1/stream/', function (data, textStatus, jqXHR) {
         $.each(data.objects, function (i, stream) {
             if (data.id in activeStreams) return;
-
-            stream.tags = tagsToObject(stream.tags);
 
             $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
                 activeStreams[stream.id] = stream;

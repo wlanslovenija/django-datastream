@@ -49,7 +49,7 @@ class StreamResource(resources.Resource):
     value_downsamplers = tastypie_fields.ListField(attribute='value_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     time_downsamplers = tastypie_fields.ListField(attribute='time_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = tastypie_fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
-    tags = tastypie_fields.ListField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
+    tags = tastypie_fields.DictField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
     datapoints = fields.DatapointsField(attribute='datapoints', null=True, blank=False, readonly=True, help_text=None)
 
