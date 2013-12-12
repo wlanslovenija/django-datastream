@@ -154,6 +154,7 @@ Stream.prototype.initializeChart = function (callback) {
             'selected': 4 // All
         },
         'xAxis': {
+            'id': 'x-axis',
             'events': {
                 'afterSetExtremes': function (event) {
                     if (event.syncing) {
@@ -268,8 +269,10 @@ Stream.prototype.loadInitialData = function () {
 
         var datapoints = self.convertDatapoints(data.datapoints);
 
+        var firstSeries = self.chart.series.length <= 1;
+
         self.chart.addAxis({
-            'id': 'axis-' + self.id,
+            'id': 'y-axis-' + self.id,
             'title': {
                 'text': [self.tags.unit_description || "", self.tags.unit ? "[" + self.tags.unit + "]" : ""].join(" ")
             },
@@ -279,7 +282,7 @@ Stream.prototype.loadInitialData = function () {
             'id': 'range-' + self.id,
             'streamId': self.id, // Our own option
             'name': self.tags.title,
-            'yAxis': 'axis-' + self.id,
+            'yAxis': 'y-axis-' + self.id,
             'type': 'arearange',
             'lineWidth': 0,
             'fillOpacity': 0.3,
@@ -307,7 +310,7 @@ Stream.prototype.loadInitialData = function () {
             'streamId': self.id, // Our own option
             'name': self.tags.title,
             'linkedTo': 'range-' + self.id,
-            'yAxis': 'axis-' + self.id,
+            'yAxis': 'y-axis-' + self.id,
             'type': 'spline',
             'color': series.color,
             'tooltip': {
@@ -327,6 +330,11 @@ Stream.prototype.loadInitialData = function () {
             'data': datapoints.line,
             'yAxis': 'navigator-y-axis-' + self.id
         }));
+
+        if (firstSeries) {
+            // Without the following range selector is not displayed until first zooming
+            self.chart.xAxis[0].setExtremes();
+        }
 
         page.updateKnownMaxRange(data);
     }).always(function () {
@@ -428,11 +436,17 @@ Page.prototype.newStream = function (stream) {
 Page.prototype.setExtremes = function (event) {
     var self = this;
 
+    self._setExtremes(event.min, event.max, 'x-axis');
+};
+
+Page.prototype._setExtremes = function (min, max, axis) {
+    var self = this;
+
     var charts =_.uniq(_.pluck(_.values(self.streams), 'chart'));
 
     _.each(charts, function (chart, i) {
         // We set "syncing" flag on the event so that charts know that they have to load data now
-        chart.xAxis[0].setExtremes(event.min, event.max, true, null, {'syncing': true});
+        chart.get(axis).setExtremes(min, max, true, false, {'syncing': true});
     });
 };
 
@@ -452,16 +466,19 @@ Page.prototype.updateKnownMaxRange = function (data) {
     var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
     var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
 
+    var changed = false;
+
     if (!_.isUndefined(start) && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
+        changed = true;
         self.minRange = moment.utc(start).valueOf();
     }
     if (!_.isUndefined(end) && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
-        self.MaxRange = moment.utc(end).valueOf();
+        changed = true;
+        self.maxRange = moment.utc(end).valueOf();
     }
 
-    if (self.minRange !== null && self.maxRange !== null) {
-        // TODO: Update all charts
-        //(self.minRange, self.maxRange);
+    if (changed && self.minRange !== null && self.maxRange !== null) {
+        self._setExtremes(self.minRange, self.maxRange, 'navigator-x-axis');
     }
 };
 
