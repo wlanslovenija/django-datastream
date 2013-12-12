@@ -520,7 +520,9 @@ Page.prototype.newStream = function (stream) {
 
     assert(!_.has(self.streams, stream.id));
 
-    self.streams[stream.id] = new Stream(stream);
+    if (!stream.tags.visualization.hidden) {
+        self.streams[stream.id] = new Stream(stream);
+    }
 };
 
 Page.prototype.setExtremes = function (event) {
