@@ -150,6 +150,8 @@ Stream.prototype.getChart = function (callback) {
 Stream.prototype.initializeChart = function (callback) {
     var self = this;
 
+    // This chart can be reused between many streams so using "self"
+    // in callbacks will make things work only for the first stream
     $('<div/>').addClass('chart').appendTo('#charts').highcharts('StockChart', {
         'chart': {
             'zoomType': 'x',
@@ -214,8 +216,11 @@ Stream.prototype.initializeChart = function (callback) {
             'events': {
                 'afterSetExtremes': function (event) {
                     if (event.syncing) {
-                        // It is our event and we are syncing extremes between charts, load data for this chart
-                        self.loadData(event);
+                        // It is our event and we are syncing extremes between charts, load data for all streams in this chart
+                        var streams = _.uniq(_.filter(_.map(self.chart.series, function (series, i) {
+                            return series.options.streamId;
+                        }), function (series) {return !!series;}));
+                        page.loadData(event, streams);
                     }
                     else {
                         // User changed extremes, first sync all charts
@@ -240,8 +245,8 @@ Stream.prototype.initializeChart = function (callback) {
         },
         'series': []
     }, function (chart) {
+        chart.loadingShown = 0;
         self.chart = chart;
-        self.chart.loadingShown = 0;
         if (callback) callback();
     });
 };
@@ -333,8 +338,6 @@ Stream.prototype.loadInitialData = function () {
 
         var datapoints = self.convertDatapoints(data.datapoints);
 
-        var firstSeries = self.chart.series.length <= 1;
-
         self.chart.addAxis({
             'id': 'y-axis-' + self.id,
             'title': {
@@ -423,10 +426,12 @@ Stream.prototype.loadInitialData = function () {
             'data': datapoints.main[0] || datapoints.range[0]
         }));
 
-        if (firstSeries) {
-            // Without the following range selector is not displayed until first zooming
-            self.chart.xAxis[0].setExtremes();
-        }
+        // Without the following range selector is not displayed until first zooming.
+        // Additionally, on streams which reuse existing graphs, we have to trigger
+        // setExtremes event and loadData. So we call this every time a new stream
+        // is added to a chart.
+        // TODO: Why calling setExtremes on xAxis[0] is not idempotent operation but grows range just a bit?
+        self.chart.xAxis[0].setExtremes();
 
         page.updateKnownMaxRange(data);
     }).always(function () {
@@ -522,6 +527,14 @@ Stream.prototype.loadData = function (event) {
     });
 };
 
+Page.prototype.loadData = function (event, streams) {
+    var self = this;
+
+    _.each(_.pick(self.streams, streams), function (stream, id) {
+        stream.loadData(event);
+    });
+};
+
 function Page() {
     var self = this;
 
@@ -594,10 +607,11 @@ Page.prototype.matchWith = function (a, b) {
 
     if (!a.tags.visualization.with) return false;
 
+    // TODO: Should we use _.findWhere?
     if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
 
     if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
-        console.warning("Streams matched, but incompatible Y axis.", a, b);
+        console.warning("Streams matched, but incompatible Y axis", a, b);
         return false;
     }
 
