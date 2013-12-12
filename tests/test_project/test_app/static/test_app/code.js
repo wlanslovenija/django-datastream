@@ -5,7 +5,7 @@
 (function (Highcharts) {
     function highlightOn(allSeries, currentSeries) {
         return function (e) {
-            $.each(allSeries, function (i, series) {
+            _.each(allSeries, function (series, i) {
                 if (i === 0) {
                     // We skip (empty) navigator series
                     assert.equal(series.data.length, 0);
@@ -13,7 +13,7 @@
                 }
 
                 var current = (series === currentSeries) || (series.linkedParent === currentSeries) || (series.options.streamId === currentSeries.options.streamId);
-                $.each(['group', 'markerGroup'], function (j, group) {
+                _.each(['group', 'markerGroup'], function (group, j) {
                     series[group].attr('opacity', current ? 1.0 : 0.25);
                 });
                 series.chart.legend.colorizeItem(series, current);
@@ -23,7 +23,7 @@
 
     function highlightOff(allSeries, currentSeries) {
         return function (e) {
-            $.each(allSeries, function (i, series) {
+            _.each(allSeries, function (series, i) {
                 if (i === 0) {
                     // We skip (empty) navigator series
                     assert.equal(series.data.length, 0);
@@ -34,7 +34,7 @@
 
                 var selected = series.selected || _.some(_.filter(allSeries, function (s) {return s.options.streamId === series.options.streamId}), function (s) {return s.selected});
 
-                $.each(['group', 'markerGroup'], function (j, group) {
+                _.each(['group', 'markerGroup'], function (group, j) {
                     series[group].attr('opacity', selected ? 1.0 : 0.25);
                 });
                 series.chart.legend.colorizeItem(series, selected);
@@ -94,7 +94,7 @@ var granularities = [
 
 function firstDefined(obj) {
     for (var i = 1; i < arguments.length; i++) {
-        if (typeof obj[arguments[i]] !== 'undefined') {
+        if (!_.isUndefined(obj[arguments[i]])) {
             return obj[arguments[i]];
         }
     }
@@ -117,13 +117,13 @@ function updateKnownMaxRange(stream) {
     var lastDatapoint = stream.datapoints[stream.datapoints.length - 1];
 
     // We go through downsampled timestamps in such order to maximize the range
-    var start = $.isPlainObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
-    var end = $.isPlainObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
+    var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+    var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
 
-    if ((typeof start !== 'undefined') && ((typeof activeStream.range.start === 'undefined') || (moment.utc(start).valueOf() < activeStream.range.start))) {
+    if (!_.isUndefined(start) && (_.isUndefined(activeStream.range.start) || (moment.utc(start).valueOf() < activeStream.range.start))) {
         activeStream.range.start = moment.utc(start).valueOf();
     }
-    if ((typeof end !== 'undefined') && ((typeof activeStream.range.end === 'undefined') || (moment.utc(end).valueOf() > activeStream.range.end))) {
+    if (!_.isUndefined(end) && (_.isUndefined(activeStream.range.end) || (moment.utc(end).valueOf() > activeStream.range.end))) {
         activeStream.range.end = moment.utc(end).valueOf();
     }
 }
@@ -217,8 +217,8 @@ function initializeChart() {
 }
 
 function convertDatapoint(datapoint) {
-    var t = moment.utc($.isPlainObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
-    if ($.isPlainObject(datapoint.v)) {
+    var t = moment.utc(_.isObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
+    if (_.isObject(datapoint.v)) {
         return {
             'line': [t, datapoint.v.m],
             'range': [t, datapoint.v.l, datapoint.v.u]
@@ -235,7 +235,7 @@ function convertDatapoint(datapoint) {
 function convertDatapoints(datapoints) {
     var line = [];
     var range = [];
-    $.each(datapoints, function (i, datapoint) {
+    _.each(datapoints, function (datapoint, i) {
         datapoint = convertDatapoint(datapoint);
         line.push(datapoint.line);
         range.push(datapoint.range);
@@ -251,7 +251,7 @@ function computeRange(min, max) {
         'granularity': granularities[0]
     };
 
-    if (!$.isNumeric(min) || !$.isNumeric(min)) {
+    if (!_.isNumber(min) || !_.isNumber(min)) {
         return range;
     }
 
@@ -261,7 +261,7 @@ function computeRange(min, max) {
 
     var interval = range.end - range.start;
 
-    $.each(granularities, function (i, granularity) {
+    _.each(granularities, function (granularity, i) {
         if (interval / granularity.duration > MAX_POINTS_NUMBER) {
             return false;
         }
@@ -414,7 +414,7 @@ $(document).ready(function () {
     $('#streams').empty();
 
     $.getJSON('/api/v1/stream/', function (data, textStatus, jqXHR) {
-        $.each(data.objects, function (i, stream) {
+        _.each(data.objects, function (stream, i) {
             if (data.id in streams) return;
 
             $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
