@@ -71,7 +71,7 @@ function updateKnownMaxRange(stream) {
 }
 
 function initializePlot() {
-    plot = new Highcharts.StockChart({
+    new Highcharts.StockChart({
         'chart': {
             'renderTo': 'plot',
             'type': 'spline',
@@ -151,6 +151,9 @@ function initializePlot() {
             }
         },
         'series': []
+    }, function (p) {
+        // Store initialized plot to the global variable
+        plot = p;
     });
 }
 
@@ -187,7 +190,7 @@ function convertDatapoints(datapoints) {
 function computeRange(min, max) {
     var range = {
         'granularity': granularities[0]
-    }
+    };
 
     if (!$.isNumeric(min) || !$.isNumeric(min)) {
         return range;
@@ -324,6 +327,7 @@ function addPlotData(stream) {
             // We cannot just call plot.xAxis[0].setExtremes(), for some reason it does
             // not correctly initialize the selector to cover the whole range but it leaves
             // few pixles, so we pass extremes ourselves
+            // TODO: Improve/fix this
             var unionExtremes = (plot.scroller && plot.scroller.getUnionExtremes()) || plot.xAxis[0] || {};
             plot.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
         }
