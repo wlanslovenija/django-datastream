@@ -294,17 +294,14 @@ function hideLoading() {
 
     loadingShown--;
     if (loadingShown === 0) {
-        plot.hideLoading();
+        chart.hideLoading();
     }
 }
 
 function reloadGraphData(event) {
     var range = computeRange(event.min, event.max);
-    var streams = $.map(streams, function (stream, id) {
-        return stream;
-    });
     showLoading();
-    async.each(streams, function (stream, cb) {
+    async.each(_.values(streams), function (stream, cb) {
         $.getJSON(stream.resource_uri, {
             'granularity': range.granularity.name,
             'limit': 10000,
