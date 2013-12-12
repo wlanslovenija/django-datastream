@@ -1,3 +1,61 @@
+/**
+ * Plugin for setting a lower opacity for other series than the one that is hovered over.
+ * Additionally, if not hovering over, a lower opacity is set based on series selected status.
+ */
+(function (Highcharts) {
+    function highlightOn(allSeries, currentSeries) {
+        return function (e) {
+            $.each(allSeries, function (i, series) {
+                if (i === 0) {
+                    // We skip (empty) navigator series
+                    assert.equal(series.data.length, 0);
+                    return;
+                }
+
+                var current = (series === currentSeries) || (series.linkedParent === currentSeries) || (series.options.streamId === currentSeries.options.streamId);
+                $.each(['group', 'markerGroup'], function (j, group) {
+                    series[group].attr('opacity', current ? 1.0 : 0.25);
+                });
+                series.chart.legend.colorizeItem(series, current);
+            });
+        };
+    }
+
+    function highlightOff(allSeries, currentSeries) {
+        return function (e) {
+            $.each(allSeries, function (i, series) {
+                if (i === 0) {
+                    // We skip (empty) navigator series
+                    assert.equal(series.data.length, 0);
+                    return;
+                }
+
+                assert(series.options.streamId);
+
+                var selected = series.selected || _.some(_.filter(allSeries, function (s) {return s.options.streamId === series.options.streamId}), function (s) {return s.selected});
+
+                $.each(['group', 'markerGroup'], function (j, group) {
+                    series[group].attr('opacity', selected ? 1.0 : 0.25);
+                });
+                series.chart.legend.colorizeItem(series, selected);
+            });
+        };
+    }
+
+    // Hovering over the legend
+    Highcharts.wrap(Highcharts.Legend.prototype, 'renderItem', function (proceed, currentSeries) {
+        proceed.call(this, currentSeries);
+
+        var allSeries = this.chart.series;
+
+        $(currentSeries.legendGroup.element).off('.highlight').on(
+            'mouseenter.highlight', highlightOn(allSeries, currentSeries)
+        ).on(
+            'mouseleave.highlight', highlightOff(allSeries, currentSeries)
+        );
+    });
+}(Highcharts));
+
 // From: http://jsfiddle.net/unLSJ/
 
 function prettyPrint(obj) {
@@ -32,7 +90,7 @@ var granularities = [
     {'name': 'minutes', 'duration': 60},
     {'name': '10seconds', 'duration': 10},
     {'name': 'seconds', 'duration': 1}
-]
+];
 
 function firstDefined(obj) {
     for (var i = 1; i < arguments.length; i++) {
@@ -86,7 +144,8 @@ function initializePlot() {
             'adaptToUpdatedData': false,
             'series': {
                 'id': 'navigator',
-                'data': [] // We will set data manually
+                // We will add our own series on top of this one and leave this one empty
+                'data': []
             }
         },
         'scrollbar': {
@@ -294,6 +353,7 @@ function addPlotData(stream) {
         });
         var series = plot.addSeries({
             'id': 'range-' + stream.id,
+            'streamId': stream.id, // Our own option
             'name': stream.tags.title,
             'yAxis': 'axis-' + stream.id,
             'type': 'arearange',
@@ -303,12 +363,24 @@ function addPlotData(stream) {
                 'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
                 'valueDecimals': 3
             },
+            'selected': true,
+            'events': {
+                'legendItemClick': function (e) {
+                    e.preventDefault();
+
+                    this.select();
+
+                    // We force mouse leave event to immediately set opacity
+                    $(this.legendGroup.element).trigger('mouseleave.highlight');
+                }
+            },
             'data': datapoints.range
         });
         // Match yAxis title color with series color
         series.yAxis.axisTitle.css({'color': series.color});
         plot.addSeries({
             'id': 'line-' + stream.id,
+            'streamId': stream.id, // Our own option
             'name': stream.tags.title,
             'linkedTo': 'range-' + stream.id,
             'color': series.color,
@@ -320,17 +392,19 @@ function addPlotData(stream) {
             'data': datapoints.line
         });
         var navigator = plot.get('navigator');
-        if (navigator.data.length === 0) {
-            // TODO: Should we set some better data for navigator?
-            navigator.setData(datapoints.line);
-            // Without the following range selector is not displayed until first zooming
-            // We cannot just call plot.xAxis[0].setExtremes(), for some reason it does
-            // not correctly initialize the selector to cover the whole range but it leaves
-            // few pixles, so we pass extremes ourselves
-            // TODO: Improve/fix this
-            var unionExtremes = (plot.scroller && plot.scroller.getUnionExtremes()) || plot.xAxis[0] || {};
-            plot.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
-        }
+        plot.addAxis(_.extend({}, navigator.yAxis.options, {
+            'id': 'navigator-y-axis-' + stream.id
+        }));
+        plot.addSeries(_.extend({}, navigator.options, {
+            'id': 'navigator-' + stream.id,
+            'streamId': stream.id, // Our own option
+            'color': series.color,
+            'data': datapoints.line,
+            'yAxis': 'navigator-y-axis-' + stream.id
+        }));
+        // TODO: Improve/fix this
+        var unionExtremes = (plot.scroller && plot.scroller.getUnionExtremes()) || plot.xAxis[0] || {};
+        plot.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
     }).always(function () {
         hideLoading();
     });
