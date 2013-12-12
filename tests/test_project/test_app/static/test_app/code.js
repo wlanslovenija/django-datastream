@@ -327,7 +327,9 @@ Stream.prototype.loadInitialData = function () {
             'title': {
                 'text': [self.tags.unit_description || "", self.tags.unit ? "[" + self.tags.unit + "]" : ""].join(" ")
             },
-            'showEmpty': false
+            'showEmpty': false,
+            'min': self.tags.visualization.minimum,
+            'max': self.tags.visualization.maximum
         });
         var yAxis = self.chart.get('y-axis-' + self.id);
         // TODO: We should probably deduplicate code here
