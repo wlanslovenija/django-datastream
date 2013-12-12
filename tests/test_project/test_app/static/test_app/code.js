@@ -1,5 +1,5 @@
 /**
- * Plugin for setting a lower opacity for other series than the one that is hovered over.
+ * Plugin for highlighting. It set a lower opacity for other series than the one that is hovered over.
  * Additionally, if not hovering over, a lower opacity is set based on series selected status.
  */
 (function (Highcharts) {
@@ -12,10 +12,11 @@
                     return;
                 }
 
-                var current = (series === currentSeries) || (series.linkedParent === currentSeries) || (series.options.streamId === currentSeries.options.streamId);
+                var current = series === currentSeries || series.linkedParent === currentSeries || series.options.streamId === currentSeries.options.streamId;
                 _.each(['group', 'markerGroup'], function (group, j) {
                     series[group].attr('opacity', current ? 1.0 : 0.25);
                 });
+                // We reuse visibility styles here
                 series.chart.legend.colorizeItem(series, current);
             });
         };
@@ -37,6 +38,7 @@
                 _.each(['group', 'markerGroup'], function (group, j) {
                     series[group].attr('opacity', selected ? 1.0 : 0.25);
                 });
+                // We reuse visibility styles here
                 series.chart.legend.colorizeItem(series, selected);
             });
         };
@@ -56,37 +58,16 @@
     });
 }(Highcharts));
 
-// From: http://jsfiddle.net/unLSJ/
-
-function prettyPrint(obj) {
-    var jsonLine = /^( *)("[\w]+": )?("[^"]*"|[\w.+-]*)?([,[{])?$/mg;
-    return JSON.stringify(obj, null, 3)
-        .replace(/&/g, '&amp;').replace(/\\"/g, '&quot;')
-        .replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(jsonLine, replacer);
-}
-
-function replacer(match, pIndent, pKey, pVal, pEnd) {
-    var key = '<span class=json-key>';
-    var val = '<span class=json-value>';
-    var str = '<span class=json-string>';
-    var r = pIndent || '';
-    if (pKey)
-        r = r + key + pKey.replace(/[": ]/g, '') + '</span>: ';
-    if (pVal)
-        r = r + (pVal[0] == '"' ? str : val) + pVal + '</span>';
-    return r + (pEnd || '');
-}
-
 // TODO: This curently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
 var MAX_POINTS_NUMBER = 300;
+var MAX_DETAIL_LIMIT = 10000;
 
-var granularities = [
-    {'name': 'days', 'duration': 86400},
-    {'name': '6hours', 'duration': 21600},
-    {'name': 'hours', 'duration': 3600},
-    {'name': '10minutes', 'duration': 600},
+var GRANULARITIES = [
+    {'name': 'days', 'duration': 24 * 60 * 60},
+    {'name': '6hours', 'duration': 6 * 60 * 60},
+    {'name': 'hours', 'duration': 60 * 60},
+    {'name': '10minutes', 'duration': 10 * 60},
     {'name': 'minutes', 'duration': 60},
     {'name': '10seconds', 'duration': 10},
     {'name': 'seconds', 'duration': 1}
@@ -100,39 +81,21 @@ function firstDefined(obj) {
     }
 }
 
-function updateKnownMaxRange(stream) {
-    assert(stream.id in streams);
+function Stream(stream) {
+    var self = this;
 
-    var activeStream = streams[stream.id];
+    _.extend(self, stream);
 
-    if (!('range' in activeStream)) {
-        activeStream.range = {};
-    }
-
-    if (stream.datapoints.length === 0) {
-        return;
-    }
-
-    var firstDatapoint = stream.datapoints[0];
-    var lastDatapoint = stream.datapoints[stream.datapoints.length - 1];
-
-    // We go through downsampled timestamps in such order to maximize the range
-    var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
-    var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
-
-    if (!_.isUndefined(start) && (_.isUndefined(activeStream.range.start) || (moment.utc(start).valueOf() < activeStream.range.start))) {
-        activeStream.range.start = moment.utc(start).valueOf();
-    }
-    if (!_.isUndefined(end) && (_.isUndefined(activeStream.range.end) || (moment.utc(end).valueOf() > activeStream.range.end))) {
-        activeStream.range.end = moment.utc(end).valueOf();
-    }
+    self.initializeChart(function () {
+        self.loadInitialData();
+    });
 }
 
-function initializeChart() {
-    new Highcharts.StockChart({
+Stream.prototype.initializeChart = function (callback) {
+    var self = this;
+
+    $('<div/>').addClass('chart').appendTo('#charts').highcharts('StockChart', {
         'chart': {
-            'renderTo': 'chart',
-            'type': 'spline',
             'zoomType': 'x',
             'borderRadius': 10
         },
@@ -192,7 +155,16 @@ function initializeChart() {
         },
         'xAxis': {
             'events': {
-                'afterSetExtremes': reloadGraphData
+                'afterSetExtremes': function (event) {
+                    if (event.syncing) {
+                        // It is our event and we are syncing extremes between charts, load data for this chart
+                        self.loadData(event);
+                    }
+                    else {
+                        // User changed extremes, first sync all charts
+                        page.setExtremes(event);
+                    }
+                }
             },
             'ordinal': false,
             'minRange': MAX_POINTS_NUMBER * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
@@ -210,13 +182,40 @@ function initializeChart() {
             }
         },
         'series': []
-    }, function (c) {
-        // Store initialized chart to the global variable
-        chart = c;
+    }, function (chart) {
+        self.chart = chart;
+        self.chart.loadingShown = 0;
+        if (callback) callback();
     });
-}
+};
 
-function convertDatapoint(datapoint) {
+Stream.prototype.showLoading = function () {
+    var self = this;
+
+    assert(self.chart.loadingShown >= 0);
+
+    self.chart.loadingShown++;
+    if (self.chart.loadingShown === 1) {
+        self.chart.showLoading("Loading data from server...");
+    }
+};
+
+Stream.prototype.hideLoading = function () {
+    var self = this;
+
+    assert(self.chart.loadingShown > 0);
+
+    self.chart.loadingShown--;
+    if (self.chart.loadingShown === 0) {
+        self.chart.hideLoading();
+    }
+};
+
+Stream.prototype.convertDatapoint = function (datapoint) {
+    var self = this;
+
+    // TODO: Convert based on visualization tags
+
     var t = moment.utc(_.isObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
     if (_.isObject(datapoint.v)) {
         return {
@@ -230,38 +229,128 @@ function convertDatapoint(datapoint) {
             'range': [t, datapoint.v, datapoint.v]
         }
     }
-}
+};
 
-function convertDatapoints(datapoints) {
+Stream.prototype.convertDatapoints = function (datapoints) {
+    var self = this;
+
+    // TODO: Convert based on visualization tags
+
     var line = [];
     var range = [];
+
     _.each(datapoints, function (datapoint, i) {
-        datapoint = convertDatapoint(datapoint);
+        datapoint = self.convertDatapoint(datapoint);
         line.push(datapoint.line);
         range.push(datapoint.range);
     });
+
     return {
         'line': line,
         'range': range
     };
-}
+};
 
-function computeRange(min, max) {
+Stream.prototype.loadInitialData = function () {
+    var self = this;
+
+    self.showLoading();
+
+    $.getJSON(self.resource_uri, {
+        // Use lowest granularity and no bounds to get initial data
+        'granularity': GRANULARITIES[0].name,
+        // We want to get all we can, we are loading days so it should not be so bad
+        'limit': MAX_DETAIL_LIMIT
+        // TODO: Limit time and value downsamplers
+    }, function (data, textStatus, jqXHR) {
+        assert.equal(data.id, self.id);
+
+        var datapoints = self.convertDatapoints(data.datapoints);
+
+        self.chart.addAxis({
+            'id': 'axis-' + self.id,
+            'title': {
+                'text': [self.tags.unit_description || "", self.tags.unit ? "[" + self.tags.unit + "]" : ""].join(" ")
+            },
+            'showEmpty': false
+        });
+        var series = self.chart.addSeries({
+            'id': 'range-' + self.id,
+            'streamId': self.id, // Our own option
+            'name': self.tags.title,
+            'yAxis': 'axis-' + self.id,
+            'type': 'arearange',
+            'lineWidth': 0,
+            'fillOpacity': 0.3,
+            'tooltip': {
+                'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
+                'valueDecimals': 3
+            },
+            'selected': true, // By default all streams are selected/highlighted
+            'events': {
+                'legendItemClick': function (e) {
+                    e.preventDefault();
+
+                    this.select();
+
+                    // We force mouse leave event to immediately set highlights
+                    $(this.legendGroup.element).trigger('mouseleave.highlight');
+                }
+            },
+            'data': datapoints.range
+        });
+        // Match yAxis title color with series color
+        series.yAxis.axisTitle.css({'color': series.color});
+        self.chart.addSeries({
+            'id': 'line-' + self.id,
+            'streamId': self.id, // Our own option
+            'name': self.tags.title,
+            'linkedTo': 'range-' + self.id,
+            'yAxis': 'axis-' + self.id,
+            'type': 'spline',
+            'color': series.color,
+            'tooltip': {
+                'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
+                'valueDecimals': 3
+            },
+            'data': datapoints.line
+        });
+        var navigator = self.chart.get('navigator');
+        self.chart.addAxis(_.extend({}, navigator.yAxis.options, {
+            'id': 'navigator-y-axis-' + self.id
+        }));
+        self.chart.addSeries(_.extend({}, navigator.options, {
+            'id': 'navigator-' + self.id,
+            'streamId': self.id, // Our own option
+            'color': series.color,
+            'data': datapoints.line,
+            'yAxis': 'navigator-y-axis-' + self.id
+        }));
+
+        page.updateKnownMaxRange(data);
+    }).always(function () {
+        self.hideLoading();
+    });
+};
+
+Stream.prototype.computeRange = function (min, max) {
+    var self = this;
+
     var range = {
-        'granularity': granularities[0]
+        'granularity': GRANULARITIES[0]
     };
 
     if (!_.isNumber(min) || !_.isNumber(min)) {
         return range;
     }
 
-    // In JavaScript timestamps are in miliseconds, but server sides uses them in seconds
+    // In JavaScript timestamps are in milliseconds, but server sides uses them in seconds
     range.start = min / 1000;
     range.end = max / 1000;
 
     var interval = range.end - range.start;
 
-    _.each(granularities, function (granularity, i) {
+    _.each(GRANULARITIES, function (granularity, i) {
         if (interval / granularity.duration > MAX_POINTS_NUMBER) {
             return false;
         }
@@ -276,158 +365,104 @@ function computeRange(min, max) {
     range.end = parseInt(Math.ceil(range.end));
 
     return range;
-}
+};
 
-var loadingShown = 0;
+Stream.prototype.loadData = function (event) {
+    var self = this;
 
-function showLoading() {
-    assert(loadingShown >= 0);
+    var range = self.computeRange(event.min, event.max);
 
-    loadingShown++;
-    if (loadingShown === 1) {
-        chart.showLoading("Loading data from server...");
-    }
-}
-
-function hideLoading() {
-    assert(loadingShown > 0);
-
-    loadingShown--;
-    if (loadingShown === 0) {
-        chart.hideLoading();
-    }
-}
-
-function reloadGraphData(event) {
-    var range = computeRange(event.min, event.max);
-    showLoading();
-    async.each(_.values(streams), function (stream, cb) {
-        $.getJSON(stream.resource_uri, {
-            'granularity': range.granularity.name,
-            'limit': 10000,
-            'start': range.start,
-            'end': range.end
-        }, function (data, textStatus, jqXHR) {
-            assert.equal(data.id, stream.id);
-
-            updateKnownMaxRange(data);
-
-            var datapoints = convertDatapoints(data.datapoints);
-            chart.get('line-' + stream.id).setData(datapoints.line);
-            chart.get('range-' + stream.id).setData(datapoints.range);
-
-            cb();
-        }).fail(function () {
-            cb(arguments);
-        });
-    }, function (err) {
-        hideLoading();
-    });
-}
-
-function addChartData(stream) {
-    var range = computeRange(chart.xAxis[0].userMin, chart.xAxis[0].userMax);
-    showLoading();
-    $.getJSON(stream.resource_uri, {
+    self.showLoading();
+    $.getJSON(self.resource_uri, {
         'granularity': range.granularity.name,
-        'limit': 10000,
+        'limit': 1000, // TODO: How much exactly do we want?
         'start': range.start,
         'end': range.end
+        // TODO: Limit time and value downsamplers
     }, function (data, textStatus, jqXHR) {
-        assert.equal(data.id, stream.id);
+        assert.equal(data.id, self.id);
 
-        updateKnownMaxRange(data);
+        // TODO: Convert based on visualization tags
+        var datapoints = self.convertDatapoints(data.datapoints);
+        self.chart.get('line-' + self.id).setData(datapoints.line);
+        self.chart.get('range-' + self.id).setData(datapoints.range);
 
-        var datapoints = convertDatapoints(data.datapoints);
+        self.hideLoading();
 
-        chart.addAxis({
-            'id': 'axis-' + stream.id,
-            'title': {
-                // TODO: Automatically prefx unit if provided
-                'text': [(stream.tags.unit || ''), (stream.tags.unit_description || '')].join(' ')
-            },
-            'showEmpty': false
-        });
-        var series = chart.addSeries({
-            'id': 'range-' + stream.id,
-            'streamId': stream.id, // Our own option
-            'name': stream.tags.title,
-            'yAxis': 'axis-' + stream.id,
-            'type': 'arearange',
-            'lineWidth': 0,
-            'fillOpacity': 0.3,
-            'tooltip': {
-                'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
-                'valueDecimals': 3
-            },
-            'selected': true,
-            'events': {
-                'legendItemClick': function (e) {
-                    e.preventDefault();
-
-                    this.select();
-
-                    // We force mouse leave event to immediately set opacity
-                    $(this.legendGroup.element).trigger('mouseleave.highlight');
-                }
-            },
-            'data': datapoints.range
-        });
-        // Match yAxis title color with series color
-        series.yAxis.axisTitle.css({'color': series.color});
-        chart.addSeries({
-            'id': 'line-' + stream.id,
-            'streamId': stream.id, // Our own option
-            'name': stream.tags.title,
-            'linkedTo': 'range-' + stream.id,
-            'color': series.color,
-            'yAxis': 'axis-' + stream.id,
-            'tooltip': {
-                'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
-                'valueDecimals': 3
-            },
-            'data': datapoints.line
-        });
-        var navigator = chart.get('navigator');
-        chart.addAxis(_.extend({}, navigator.yAxis.options, {
-            'id': 'navigator-y-axis-' + stream.id
-        }));
-        chart.addSeries(_.extend({}, navigator.options, {
-            'id': 'navigator-' + stream.id,
-            'streamId': stream.id, // Our own option
-            'color': series.color,
-            'data': datapoints.line,
-            'yAxis': 'navigator-y-axis-' + stream.id
-        }));
-        // TODO: Improve/fix this
-        var unionExtremes = (chart.scroller && chart.scroller.getUnionExtremes()) || chart.xAxis[0] || {};
-        chart.xAxis[0].setExtremes(unionExtremes.dataMin, unionExtremes.dataMax);
-    }).always(function () {
-        hideLoading();
+        page.updateKnownMaxRange(data);
+    }).fail(function () {
+        self.hideLoading();
     });
+};
+
+function Page() {
+    var self = this;
+
+    self.streams = {};
+    self.minRange = null;
+    self.maxRange = null;
 }
 
-var streams = {};
-var chart = null;
+Page.prototype.newStream = function (stream) {
+    var self = this;
+
+    assert(!_.has(self.streams, stream.id));
+
+    self.streams[stream.id] = new Stream(stream);
+};
+
+Page.prototype.setExtremes = function (event) {
+    var self = this;
+
+    var charts =_.uniq(_.pluck(_.values(self.streams), 'chart'));
+
+    _.each(charts, function (chart, i) {
+        // We set "syncing" flag on the event so that charts know that they have to load data now
+        chart.xAxis[0].setExtremes(event.min, event.max, true, null, {'syncing': true});
+    });
+};
+
+Page.prototype.updateKnownMaxRange = function (data) {
+    var self = this;
+
+    assert(_.has(self.streams, data.id));
+
+    if (!data.datapoints || data.datapoints.length === 0) {
+        return;
+    }
+
+    var firstDatapoint = data.datapoints[0];
+    var lastDatapoint = data.datapoints[data.datapoints.length - 1];
+
+    // We go through downsampled timestamps in such order to maximize the range
+    var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+    var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
+
+    if (!_.isUndefined(start) && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
+        self.minRange = moment.utc(start).valueOf();
+    }
+    if (!_.isUndefined(end) && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
+        self.MaxRange = moment.utc(end).valueOf();
+    }
+
+    if (self.minRange !== null && self.maxRange !== null) {
+        // TODO: Update all charts
+        //(self.minRange, self.maxRange);
+    }
+};
+
+var page = new Page();
 
 $(document).ready(function () {
-    $('#streams').empty();
-
+    // TODO: Will load only the first page of streams
+    // TODO: Allow some way of filtering streams
     $.getJSON('/api/v1/stream/', function (data, textStatus, jqXHR) {
         _.each(data.objects, function (stream, i) {
-            if (data.id in streams) return;
-
-            $('<li/>').data(stream).html(prettyPrint(stream.tags)).appendTo('#streams').click(function (e) {
-                streams[stream.id] = stream;
-                addChartData(stream);
-                $(this).remove();
-            });
+            page.newStream(stream);
         });
     });
 
     $(document).ajaxError(function (event, jqXHR, ajaxSettings, thrownError) {
         console.error(event, jqXHR, ajaxSettings, thrownError);
     });
-
-    initializeChart();
 });

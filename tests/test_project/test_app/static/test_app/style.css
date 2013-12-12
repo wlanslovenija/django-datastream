@@ -36,25 +36,3 @@ a:not(:hover) {
 pre, code, textarea {
     font-family: "Lucida Console",Monaco,monospace;
 }
-
-.json-key {
-    color: brown;
-}
-
-.json-value {
-    color: navy;
-}
-
-.json-string {
-    color: olive;
-}
-
-#streams {
-    padding: 0;
-    list-style: none;
-}
-
-#streams li:hover {
-    background-color: lavender;
-    cursor: pointer;
-}
