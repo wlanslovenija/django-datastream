@@ -81,13 +81,53 @@ function firstDefined(obj) {
     }
 }
 
+function setsEqual(a, b) {
+    return a.length === b.length && _.difference(a, b).length === 0;
+}
+
 function Stream(stream) {
     var self = this;
 
     _.extend(self, stream);
 
+    if (_.without(self.tags.visualization.time_downsamplers, 'mean').length) {
+        // TODO: Currently we support only mean time downsampler
+        console.error("Unsupported time downsamplers", self.tags.visualization.time_downsamplers);
+        throw new Error("Unsupported time downsamplers");
+    }
+
+    if (_.without(self.tags.visualization.value_downsamplers, 'min', 'mean', 'max').length) {
+        // TODO: Currently we support only min, mean, and max value downsampler
+        console.error("Unsupported value downsamplers", self.tags.visualization.value_downsamplers);
+        throw new Error("Unsupported value downsamplers");
+    }
+
     self.lastRangeStart = null;
     self.lastRangeEnd = null;
+
+    self.mainTypes = [];
+    self.rangeTypes = [];
+
+    if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'max'])) {
+        self.mainTypes = [{'type': 'spline', 'keys': ['u']}, {'type': 'spline', 'keys': ['l']}];
+    }
+    else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean', 'max'])) {
+        self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+        self.rangeTypes = [{'type': 'arearange', 'keys': ['l', 'u']}];
+    }
+    else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['mean', 'max'])) {
+        self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+        self.rangeTypes = [{'type': 'arearange', 'keys': ['m', 'u']}];
+    }
+    else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean'])) {
+        self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+        self.rangeTypes = [{'type': 'arearange', 'keys': ['l', 'm']}];
+    }
+    else {
+        // TODO: Currently we have only limited support for various combinations
+        console.error("Unsupported combination of type and value downsamplers", self.tags.visualization.type, self.tags.visualization.value_downsamplers);
+        throw new Error("Unsupported combination of type and value downsamplers");
+    }
 
     self.initializeChart(function () {
         self.loadInitialData();
@@ -215,42 +255,50 @@ Stream.prototype.hideLoading = function () {
     }
 };
 
+// TODO: We should probably optimize this and not use functions to iterate
 Stream.prototype.convertDatapoint = function (datapoint) {
     var self = this;
 
-    // TODO: Convert based on visualization tags
-
+    // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now
     var t = moment.utc(_.isObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
+
     if (_.isObject(datapoint.v)) {
         return {
-            'line': [t, datapoint.v.m],
-            'range': [t, datapoint.v.l, datapoint.v.u]
+            'main': _.map(self.mainTypes, function (mainType, i) {
+                return [t].concat(_.map(mainType.keys, function (key, j) {return datapoint.v[key];}));
+            }),
+            'range': _.map(self.rangeTypes, function (rangeType, i) {
+                return [t].concat(_.map(rangeType.keys, function (key, j) {return datapoint.v[key];}));
+            })
         }
     }
     else {
         return {
-            'line': [t, datapoint.v],
-            'range': [t, datapoint.v, datapoint.v]
+            'main': [[t].concat(_.map(self.mainTypes[0].keys, function (key, i) {return datapoint.v;}))],
+            'range': []
         }
     }
 };
 
+// TODO: We should probably optimize this and not use functions to iterate
 Stream.prototype.convertDatapoints = function (datapoints) {
     var self = this;
 
-    // TODO: Convert based on visualization tags
-
-    var line = [];
-    var range = [];
+    var main = _.map(self.mainTypes, function (mainType, i) {return [];});
+    var range = _.map(self.rangeTypes, function (rangeType, i) {return [];});
 
     _.each(datapoints, function (datapoint, i) {
         datapoint = self.convertDatapoint(datapoint);
-        line.push(datapoint.line);
-        range.push(datapoint.range);
+        _.each(datapoint.main, function (m, i) {
+            main[i].push(m);
+        });
+        _.each(datapoint.range, function (r, i) {
+            range[i].push(r);
+        });
     });
 
     return {
-        'line': line,
+        'main': main,
         'range': range
     };
 };
@@ -281,46 +329,72 @@ Stream.prototype.loadInitialData = function () {
             },
             'showEmpty': false
         });
-        var series = self.chart.addSeries({
-            'id': 'range-' + self.id,
-            'streamId': self.id, // Our own option
-            'name': self.tags.title,
-            'yAxis': 'y-axis-' + self.id,
-            'type': 'arearange',
-            'lineWidth': 0,
-            'fillOpacity': 0.3,
-            'tooltip': {
-                'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
-                'valueDecimals': 3
-            },
-            'selected': true, // By default all streams are selected/highlighted
-            'events': {
-                'legendItemClick': function (e) {
-                    e.preventDefault();
+        var yAxis = self.chart.get('y-axis-' + self.id);
+        // TODO: We should probably deduplicate code here
+        var series = null;
+        _.each(self.rangeTypes, function (rangeType, i) {
+            var s = self.chart.addSeries({
+                'id': 'range-' + i + '-' + self.id,
+                'streamId': self.id, // Our own option
+                'name': self.tags.title,
+                'linkedTo': series ? series.options.id : undefined, // Has to be undefined and cannot be null
+                'yAxis': yAxis.options.id,
+                'type': rangeType.type,
+                'color': series ? series.color : null, // To automatically choose a color
+                'lineWidth': 0,
+                'fillOpacity': 0.3,
+                'tooltip': {
+                    // TODO: Should be based on rangeType
+                    'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
+                    'valueDecimals': 3
+                },
+                'selected': series ? false : true, // By default all streams in the legend are selected/highlighted
+                'events': {
+                    'legendItemClick': series ? null : function (e) {
+                        e.preventDefault();
 
-                    this.select();
+                        this.select();
 
-                    // We force mouse leave event to immediately set highlights
-                    $(this.legendGroup.element).trigger('mouseleave.highlight');
-                }
-            },
-            'data': datapoints.range
+                        // We force mouse leave event to immediately set highlights
+                        $(this.legendGroup.element).trigger('mouseleave.highlight');
+                    }
+                },
+                'data': datapoints.range[i]
+            });
+            series = series || s;
+            // Match yAxis title color with series color
+            yAxis.axisTitle.css({'color': series.color});
         });
-        // Match yAxis title color with series color
-        series.yAxis.axisTitle.css({'color': series.color});
-        self.chart.addSeries({
-            'id': 'line-' + self.id,
-            'streamId': self.id, // Our own option
-            'name': self.tags.title,
-            'linkedTo': 'range-' + self.id,
-            'yAxis': 'y-axis-' + self.id,
-            'type': 'spline',
-            'color': series.color,
-            'tooltip': {
-                'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
-                'valueDecimals': 3
-            },
-            'data': datapoints.line
+        _.each(self.mainTypes, function (mainType, i) {
+            var s = self.chart.addSeries({
+                'id': 'main-' + i + '-' + self.id,
+                'streamId': self.id, // Our own option
+                'name': self.tags.title,
+                'linkedTo': series ? series.options.id : undefined, // Has to be undefined and cannot be null
+                'yAxis': yAxis.options.id,
+                'type': mainType.type,
+                'color': series ? series.color : null, // To automatically choose a color
+                'tooltip': {
+                    // TODO: Should be based on mainType
+                    'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
+                    'valueDecimals': 3
+                },
+                'selected': series ? false : true, // By default all streams in the legend are selected/highlighted
+                'events': {
+                    'legendItemClick': series ? null : function (e) {
+                        e.preventDefault();
+
+                        this.select();
+
+                        // We force mouse leave event to immediately set highlights
+                        $(this.legendGroup.element).trigger('mouseleave.highlight');
+                    }
+                },
+                'data': datapoints.main[i]
+            });
+            series = series || s;
+            // Match yAxis title color with series color
+            yAxis.axisTitle.css({'color': series.color});
         });
         var navigator = self.chart.get('navigator');
         self.chart.addAxis(_.extend({}, navigator.yAxis.options, {
@@ -329,9 +403,9 @@ Stream.prototype.loadInitialData = function () {
         self.chart.addSeries(_.extend({}, navigator.options, {
             'id': 'navigator-' + self.id,
             'streamId': self.id, // Our own option
+            'yAxis': 'navigator-y-axis-' + self.id,
             'color': series.color,
-            'data': datapoints.line,
-            'yAxis': 'navigator-y-axis-' + self.id
+            'data': datapoints.main[0] || datapoints.range[0]
         }));
 
         if (firstSeries) {
@@ -388,7 +462,9 @@ Stream.prototype.valueDownsamplers = function (initial) {
 Stream.prototype.timeDownsamplers = function (initial) {
     var self = this;
 
-    return _.union(self.tags.visualization.time_downsamplers, initial ? ['first', 'last'] : [])
+    // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now
+    //return _.union(self.tags.visualization.time_downsamplers, initial ? ['first', 'last'] : [])
+    return _.union(['mean'], initial ? ['first', 'last'] : [])
 };
 
 Stream.prototype.loadData = function (event) {
@@ -415,10 +491,13 @@ Stream.prototype.loadData = function (event) {
         self.lastRangeStart = range.start;
         self.lastRangeEnd = range.end;
 
-        // TODO: Convert based on visualization tags
         var datapoints = self.convertDatapoints(data.datapoints);
-        self.chart.get('line-' + self.id).setData(datapoints.line);
-        self.chart.get('range-' + self.id).setData(datapoints.range);
+        _.each(self.mainTypes, function (mainType, i) {
+            self.chart.get('main-' + i + '-' + self.id).setData(datapoints.main[i]);
+        });
+        _.each(self.rangeTypes, function (rangeType, i) {
+            self.chart.get('range-' + i + '-' + self.id).setData(datapoints.range[i]);
+        });
 
         self.hideLoading();
 
