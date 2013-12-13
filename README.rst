@@ -1,9 +1,9 @@
 django-datastream
 =================
 
-This Django application provides a HTTP interface to `Datastream API time-series library`_.
+This Django package provides a HTTP interface to `time-series  Datastream API`_.
 
-.. _Datastream API time-series library: https://github.com/wlanslovenija/datastream
+.. _time-series  Datastream API: https://github.com/wlanslovenija/datastream
 
 Documentation is found at:
 
