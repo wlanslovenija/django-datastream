@@ -1,103 +1,92 @@
 Usage
 =====
 
+This Django package provides a RESTful read-only HTTP interface by using django-tastypie_. It extends it
+to provide access to Datastream API and you can extend the interface further. Read `Tastypie documentation`_
+to learn more how to configure and customize the interface.
+
+.. _django-tastypie: https://github.com/toastdriven/django-tastypie
+.. _Tastypie documentation: http://django-tastypie.readthedocs.org/en/latest/index.html
+
+HTTP API
+--------
+
 .. note::
 
-    For this document we assume that API is nested under ``/api/`` URL prefix.
-
-API resembles RESTful interface, allowing for example to specify response data format (JSON, XML, ...).
+    We assume that API is nested under ``/api/`` URI prefix.
 
 List of all streams can be obtained at::
 
     /api/v1/stream/
 
+To get results in JSON format in the browser, you have to append ``?format=json``::
+
+    /api/v1/stream/?format=json
+
 Accessing particular stream is through its ID, for example::
 
     /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/
 
-API is read-only and supports the following HTTP commands for each stream:
+API is read-only and supports the GET HTTP command for each stream. It returns a list of datapoints stored in a stream.
+Response contains some additional metadata to allow pagination and automatic interface exploration/discovery easier.
 
-* ``GET`` -- returns data
-* ``WAIT`` -- waits for any data to be available and returns it
-
-``GET`` and ``WAIT`` can be seen as non-blocking and blocking counterparts of each other, respectively.
-Otherwise they behave the same. They return a list of datapoints stored in a stream. Response contains
-some additional metadata to allow pagination and automatic interface exploration/discovery easier.
-
-Because of potentially long streames, additional parameters can be specified to limit the interval of
+Because of potentially long streams, additional parameters can be specified to limit the interval of
 datapoints through query string parameters (default is all datapoints)::
 
-    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?s=<start timestamp>&e=<end timestamp>
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?start=<start timestamp>&end=<end timestamp>
 
 Timestamps are in seconds since `UNIX epoch`_. If start or end timestamp is missing, this means all
 datapoints from the beginning of the stream, or all datapoints to the end of the stream, respectively.
-For real-time streams the latter in practice means all datapoints until the current time. Start and end
-timestamps are inclusive. If you want exclusive timestamps, you can use ``sx`` and ``ex`` query string
-parameters.
+Start and end timestamps are inclusive. If you want exclusive timestamps, you can use ``start_exclusive``
+and ``end_exclusive`` query string parameters.
 
 Additionally, paging query string parameters can be used::
 
-    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?l=<page limit>&o=<offset>
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?limit=<page limit>&ooffset=<offset>
 
 Page limit limits absolute number of datapoints returned in this response and offset allows offsetting the datapoints,
-positive from beginning, negative from the end. Metadata in the response contains data on how many datapoints would
-there be otherwise in the response and URIs to previous and next page. Setting page limit to 0 allows simple
-querying of the URI without retrieving any data. Default page limit is 100 datapoints.
+positive from beginning. You can specify ``reverse`` to reverse the order of datapoints.
 
-``WAIT`` waits until any datapoint in stream (possibly limited by query string parameters) is available before
-returning. If data is already available, it returns immediately, behaving the same as ``GET``. For example, after
-reading all datapoints of a stream, client can request ``WAIT`` request with ``s`` parameter set to the timestamp of the
-last datapoint to wait until new datapoint is added to the stream.
+Metadata in the response contains data on how many datapoints would there be otherwise in the response and URIs to
+previous and next page. Setting page limit to 0 allows simple querying of the URI without retrieving any data.
+Default page limit is 100 datapoints.
 
-Together with some metadata datapoints are returned as a list of ``t`` (time) and ``v`` (value) dictionaries.
-Which data is returned can be configured with query parameters:
+Together with some metadata datapoints are returned as a list of ``t`` (time) and ``v`` (value) values or dictionaries,
+depending on granularity level requested. Which data is returned can be configured with query parameters:
 
-* ``g`` -- granularity (``s``, ``S``, ``m``, ``M``, ``h``, ``H``, and ``d``, for seconds, 10 seconds, minutes,
-  10 minutes, hours, 6 hours, and days, respectively)
+* ``granularity`` -- granularity (``seconds``, ``10seconds``, ``minutes``, ``10minutes``, ``hours``, ``6hours``, and ``days``)
 * ``v`` -- value downsamplers, you can specify them to limit returned downsampled values; a comma-separated
   list or specified multiple times in the query
 * ``t`` -- time downsamplers, you can specify them to limit returned downsampled timestamps; a comma-separated
   list or specified multiple times in the query
 
-For example, to return minutes granularity with only average, min, and max values::
+For example, to return minutes granularity with only average, minimum, and maximum values::
 
-    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?g=m&d=m,l&d=u
+    /api/v1/stream/caa88489-fa0f-4458-bc0b-0d52c7a31715/?granularity=minutes&value_downsamplers=mean,max&value_downsamplers=min
+
+For all query parameters there exists also shorter forms to allow more complicated queries without having to worry about
+URI length.
 
 .. _UNIX epoch: http://en.wikipedia.org/wiki/Unix_time
 
-Datastream server
------------------
+Demo
+----
 
-To serve datastreams production-grade HTTP server is bundled in. It is scalable and non-blocking, based on
-`Tornado webserver`_. It supports thousands of simultaneous standing connections waiting for new datapoints.
-Along with serving datastream API requests it can be also used as a replacement for Django's `runserver
-management command`_ (but it does not `autoserve static files`_, you have to `collect static files`_
-beforehand, and does not autoreload on code changes). You run it in a similar way with::
+Together with tests a demo project is provided. If you want to try it out, go to ``tests`` directory and
+run ``manage.py`` there.
 
-    ./manage.py runserver
+To prepare data for a demo project, start MongoDB database, and run::
 
-This is needed to support ``WAIT`` command. If you are not using it, you can serve Django in a standard way.
+    ./manage.py dummystream --demo
 
-.. _Tornado webserver: http://www.tornadoweb.org/
-.. _runserver management command: https://docs.djangoproject.com/en/dev/ref/django-admin/#runserver-port-or-address-port
-.. _autoserve static files: https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/#staticfiles-runserver
-.. _collect static files: https://docs.djangoproject.com/en/dev/ref/contrib/staticfiles/#django-admin-collectstatic
+This populates database with three streams and some random datapoints. You can provide different options to the
+command for different results.
 
-Demo web page
--------------
-
-For a demo web page, start mongo database, go to the tests folder and run::
-
-    ./manage.py dummystream -t "int(0,100),float(0,3),float(-2,2),enum(1,2,3)" -v 2
-
-This runs a deamon that creates test stream data. Three data types are supported
-(int, float and enum). Rfange can be specified within brackets for int and float and
-a list of values for the enum data type.
-
-Open new terminal window, cd to tests folder again and run mongo project::
+After it finishes initial generation of datapoints and downsamples them, you can additionally run Django development server::
 
     ./manage.py runserver
 
-Open the `demo web page`_.
+Open the `demo web page`_ where you should see a visualization of three streams you can interact with. This visualization
+uses HTTP interface this package provides.
 
 .. _demo web page: http://127.0.0.1:8000/
