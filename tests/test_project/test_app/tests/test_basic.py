@@ -17,15 +17,6 @@ class BasicTest(test.TestCase):
     def resourceListURI(self, resource_name):
         return urlresolvers.reverse('api_dispatch_list', kwargs={'api_name': self.api_name, 'resource_name': resource_name})
 
-    def tagsToDict(self, tags):
-        result = {}
-        for tag in tags:
-            if isinstance(tag, dict):
-                result.update(tag)
-            else:
-                result[tag] = tag
-        return result
-
     def test_basic(self):
         response = self.c.get(self.resourceListURI('stream'))
         self.assertEqual(response.status_code, 200)
@@ -42,10 +33,10 @@ class BasicTest(test.TestCase):
         self.assertEqual(response['meta']['total_count'], 3)
 
         for i, stream in enumerate(response['objects']):
-            tags = self.tagsToDict(stream['tags'])
+            tags = stream['tags']
 
-            self.assertEqual(tags['name'], 'Stream %d' % tags['stream_number'], tags['name'])
-            self.assertEqual(tags['foobar'], 'foobar')
+            self.assertEqual(tags['title'], 'Stream %d' % tags['stream_number'], tags['title'])
+            self.assertTrue('visualization' in tags, tags.get('visualization', None))
             self.assertTrue('description' in tags, tags.get('description', None))
 
             self.assertItemsEqual(stream['value_downsamplers'], self.value_downsamplers)
@@ -62,7 +53,7 @@ class BasicTest(test.TestCase):
 
         self.assertEqual(response['id'], stream['id'])
         self.assertEqual(response['resource_uri'], stream_uri)
-        self.assertEqual(self.tagsToDict(response['tags']), tags)
+        self.assertEqual(response['tags'], tags)
         self.assertItemsEqual(response['value_downsamplers'], self.value_downsamplers)
         self.assertItemsEqual(response['time_downsamplers'], self.time_downsamplers)
         self.assertEqual(response['highest_granularity'], 'seconds')
