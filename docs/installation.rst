@@ -7,12 +7,34 @@ Using pip_ simply by doing::
 
 .. _pip: http://pypi.python.org/pypi/pip
 
-You should then add ``datastream`` to ``INSTALLED_APPS`` and configure TODO. For
-example::
+Or install from source_ directly.
 
-    TODO
+.. _source: https://github.com/wlanslovenija/django-datastream
 
-.. Settings translate directly to settings of the `py-hbpush`_ package. Production
-   settings should match those configured in Nginx.
+You should then add ``django_datastream`` to ``INSTALLED_APPS`` in your ``settings.py``.
 
-.. _py-hbpush: https://github.com/mitar/py-hbpush/tree/mitar
+Suggested settings are::
+
+    INSTALLED_APPS += (
+        'tastypie',
+        'django_datastream',
+    )
+
+    USE_TZ = True
+
+    MONGO_DATABASE_NAME = 'project_name'
+    MONGO_DATABASE_OPTIONS = {
+        'tz_aware': USE_TZ,
+    }
+
+    DATASTREAM_BACKEND = 'datastream.backends.mongodb.Backend'
+    DATASTREAM_BACKEND_SETTINGS = {
+        'database_name': MONGO_DATABASE_NAME,
+        'tz_aware': USE_TZ,
+    }
+
+    # We use RFC 2822 for better parsing in JavaScript and time-zone support
+    TASTYPIE_DATETIME_FORMATTING = 'rfc-2822'
+
+    # JSONP support as well
+    TASTYPIE_DEFAULT_FORMATS = ('json', 'jsonp', 'xml')
