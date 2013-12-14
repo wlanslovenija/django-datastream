@@ -611,7 +611,7 @@ Page.prototype.matchWith = function (a, b) {
     if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
 
     if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
-        console.warning("Streams matched, but incompatible Y axis", a, b);
+        console.warn("Streams matched, but incompatible Y axis", a, b);
         return false;
     }
 
