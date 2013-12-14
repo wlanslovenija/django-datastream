@@ -552,7 +552,7 @@ Page.prototype.newStream = function (stream) {
         try {
             self.streams[stream.id] = new Stream(stream);
         }
-        except (e) {
+        catch (e) {
             // We ignore the exception beause we have already logged it
         }
     }
