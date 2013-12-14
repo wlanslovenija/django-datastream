@@ -4,13 +4,14 @@ from tastypie import exceptions, paginator
 
 
 class Paginator(paginator.Paginator):
+    limit_setting = 'API_LIMIT_PER_PAGE'
+
     def get_limit(self):
         # Mostly just a copy of parent get_limit
 
         limit = self.request_data.get('limit', self.limit)
         if limit is None:
-            # We use API_DETAIL_LIMIT_PER_PAGE
-            limit = getattr(settings, 'API_DETAIL_LIMIT_PER_PAGE', 20)
+            limit = getattr(settings, self.limit_setting, 20)
 
         try:
             limit = int(limit)
@@ -31,7 +32,12 @@ class Paginator(paginator.Paginator):
             # If explicitly zero, return nothing
             return []
 
-        # Optimization, this is a method of datastream.api.Datapoints
+        # Optimization, this is a method of datastream.api.Datapoints and datastream.api.Streams
         self.objects.batch_size(limit)
 
         return self.objects[offset:offset + limit]
+
+
+class DetailPaginator(Paginator):
+    # We use API_DETAIL_LIMIT_PER_PAGE
+    limit_setting = 'API_DETAIL_LIMIT_PER_PAGE'

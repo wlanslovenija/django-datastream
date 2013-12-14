@@ -9,7 +9,7 @@ from django.conf import settings
 from tastypie import bundle as tastypie_bundle, exceptions, fields as tastypie_fields, resources
 
 from . import datastream, fields, paginator, serializers
-from datastream import exceptions as datastream_exceptions
+from datastream import api as datastream_api, exceptions as datastream_exceptions
 
 
 class InvalidGranularity(exceptions.BadRequest):
@@ -34,13 +34,37 @@ QUERY_TIME_DOWNSAMPLERS = 'time_downsamplers'
 QUERY_REVERSE = 'reverse'
 
 
+class StreamsList(datastream_api.ResultsBase):
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def batch_size(self, batch_size):
+        self.cursor.batch_size(batch_size)
+
+    def count(self):
+        return self.cursor.count()
+
+    def __iter__(self):
+        for stream in self.cursor:
+            yield datastream.Stream(stream)
+
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return StreamsList(self.cursor.__getitem__(key))
+        elif isinstance(key, (int, long)):
+            return datastream.Stream(self.cursor.__getitem__(key))
+        else:
+            raise TypeError
+
+
 class StreamResource(resources.Resource):
     class Meta:
         list_allowed_methods = ('get',)
         detail_allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
         serializer = serializers.DatastreamSerializer()
-        detail_paginator_class = paginator.Paginator
+        paginator_class = paginator.Paginator
+        detail_paginator_class = paginator.DetailPaginator
         detail_limit = getattr(settings, 'API_DETAIL_LIMIT_PER_PAGE', 100)
         max_detail_limit = 10000
 
@@ -65,7 +89,7 @@ class StreamResource(resources.Resource):
 
     def get_object_list(self, request):
         # TODO: Provide users a way to query streams by tags (is this the same as allow filtering?) (use ListQuerySet from django-tastypie-mongoengine?)
-        return [datastream.Stream(stream) for stream in datastream.find_streams()]
+        return StreamsList(datastream.find_streams())
 
     def apply_sorting(self, obj_list, options=None):
         # TODO: Allow sorting (use ListQuerySet from django-tastypie-mongoengine?)
