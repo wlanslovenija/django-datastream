@@ -162,7 +162,7 @@ class Command(base.BaseCommand):
             streams.append((stream_id, type))
 
         span = span.split(' ')
-        if len(span) == 1:
+        if len(span) == 1 and span[0]:
             span = span[0]
             for val, key in (('days', 'd'), ('hours', 'h')):
                 if span[-1] == key:
