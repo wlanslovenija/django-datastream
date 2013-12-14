@@ -82,7 +82,7 @@ function firstDefined(obj) {
 }
 
 function setsEqual(a, b) {
-    return a.length === b.length && _.difference(a, b).length === 0;
+    return (a === b) || (a && b && a.length === b.length && _.difference(a, b).length === 0);
 }
 
 function Stream(stream) {
