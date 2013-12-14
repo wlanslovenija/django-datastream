@@ -548,7 +548,7 @@ Page.prototype.newStream = function (stream) {
 
     assert(!_.has(self.streams, stream.id));
 
-    if (!stream.tags.visualization.hidden) {
+    if (stream.tags && stream.tags.visualization && !stream.tags.visualization.hidden) {
         try {
             self.streams[stream.id] = new Stream(stream);
         }
