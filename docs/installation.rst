@@ -1,17 +1,20 @@
 Installation
 ============
 
-Using pip_ simply by doing::
+Inside a virtualenv_, using pip_ simply by doing::
 
     pip install django-datastream
 
+.. _virtualenv: https://pypi.python.org/pypi/virtualenv
 .. _pip: http://pypi.python.org/pypi/pip
 
 Or install from source_ directly.
 
 .. _source: https://github.com/wlanslovenija/django-datastream
 
-You should then add ``django_datastream`` to ``INSTALLED_APPS`` in your ``settings.py``.
+At this point you can try out :ref:`demo <demo>`, or proceed with integration with your Django project.
+
+You should add ``django_datastream`` to ``INSTALLED_APPS`` in your ``settings.py``.
 
 Suggested settings are::
 

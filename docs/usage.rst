@@ -69,6 +69,8 @@ URI length.
 
 .. _UNIX epoch: http://en.wikipedia.org/wiki/Unix_time
 
+.. _demo:
+
 Demo
 ----
 
