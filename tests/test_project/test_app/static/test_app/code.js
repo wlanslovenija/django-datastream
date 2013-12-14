@@ -549,7 +549,12 @@ Page.prototype.newStream = function (stream) {
     assert(!_.has(self.streams, stream.id));
 
     if (!stream.tags.visualization.hidden) {
-        self.streams[stream.id] = new Stream(stream);
+        try {
+            self.streams[stream.id] = new Stream(stream);
+        }
+        except (e) {
+            // We ignore the exception beause we have already logged it
+        }
     }
 };
 
