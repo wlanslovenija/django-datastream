@@ -12,7 +12,7 @@ Or install from source_ directly.
 
 .. _source: https://github.com/wlanslovenija/django-datastream
 
-At this point you can try out :ref:`demo <demo>`, or proceed with integration with your Django project.
+If installing from source, you can at this point try out :ref:`demo <demo>`, or proceed with integration with your Django project.
 
 You should add ``django_datastream`` to ``INSTALLED_APPS`` in your ``settings.py``.
 
