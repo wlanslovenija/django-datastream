@@ -1,3 +1,14 @@
+_.findIndex = function (obj, iterator, context) {
+    var result;
+    _.any(obj, function(value, index, list) {
+        if (iterator.call(context, value, index, list)) {
+            result = index;
+            return true;
+        }
+    });
+    return result;
+};
+
 /**
  * Plugin for highlighting. It set a lower opacity for other series than the one that is hovered over.
  * Additionally, if not hovering over, a lower opacity is set based on series selected status.
@@ -55,6 +66,83 @@
         ).on(
             'mouseleave.highlight', highlightOff(allSeries, currentSeries)
         );
+    });
+}(Highcharts));
+
+/*
+ * Extend Highcharts so that JSON and XML can be exported from the current view.
+ */
+(function (Highcharts) {
+    var defaultOptions = Highcharts.getOptions();
+
+    _.extend(defaultOptions.lang, {
+        'exportJSON': "Export JSON",
+        'exportXML': "Export XML"
+    });
+
+    defaultOptions.exporting.buttons.contextButton.menuItems.push({
+        'separator': true
+    },
+    {
+        'textKey': 'exportJSON',
+        'onclick': function (e) {
+            // We make a menu entry into a link, so we don't do anything here
+        }
+    },
+    {
+        'textKey': 'exportXML',
+        'onclick': function (e) {
+            // We make a menu entry into a link, so we don't do anything here
+        }
+    });
+
+    _.extend(defaultOptions.navigation.menuItemStyle, {
+        'textDecoration': 'none'
+    });
+
+    Highcharts.wrap(Highcharts.Chart.prototype, 'contextMenu', function (proceed, className, items, x, y, width, height, button) {
+        proceed.call(this, className, items, x, y, width, height, button);
+
+        var exportJSON = _.findIndex(this.options.exporting.buttons.contextButton.menuItems, function (menuItem) {
+            return menuItem.textKey === 'exportJSON';
+        });
+        var exportXML = _.findIndex(this.options.exporting.buttons.contextButton.menuItems, function (menuItem) {
+            return menuItem.textKey === 'exportXML';
+        });
+
+        var menuItemStyle = this.options.navigation.menuItemStyle;
+        var menuItemHoverStyle = this.options.navigation.menuItemHoverStyle;
+
+        // TODO: We remove padding here so that link does not have additional padding, but this prevents overriding with some other padding, we should probably use some other style object, with menuItemStyle as default
+        menuItemStyle = _.omit(menuItemStyle, 'padding');
+
+        var $exportJSON = $(this.exportDivElements[exportJSON]);
+        var $exportXML = $(this.exportDivElements[exportXML]);
+
+        function addFormat(url, format) {
+            if (url.indexOf('?') !== -1) {
+                return url + '&format=' + format;
+            }
+            else {
+                return url + '?format=' + format;
+            }
+        }
+
+        var exportJSONURL = addFormat(this.exportDataURL, 'json');
+        var exportXMLURL = addFormat(this.exportDataURL, 'xml');
+
+        function addLink($div, url) {
+            if (!$div.find('a').attr('href', url).length) {
+                $div.wrapInner($('<a/>').attr('href', url).css(menuItemStyle).hover(function (e) {
+                    $(this).css(menuItemHoverStyle);
+                }, function (e) {
+                    $(this).css(menuItemStyle);
+                }));
+            }
+        }
+
+        addLink($exportJSON, exportJSONURL);
+        addLink($exportXML, exportXMLURL);
     });
 }(Highcharts));
 
@@ -321,6 +409,12 @@ Stream.prototype.convertDatapoints = function (datapoints) {
     };
 };
 
+Stream.prototype.setExportDataURL = function (url) {
+    var self = this;
+
+    self.chart.exportDataURL = url;
+};
+
 Stream.prototype.loadInitialData = function () {
     var self = this;
 
@@ -335,6 +429,8 @@ Stream.prototype.loadInitialData = function () {
         'time_downsamplers': self.timeDownsamplers(true)
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, self.id);
+
+        var settings = this;
 
         var datapoints = self.convertDatapoints(data.datapoints);
 
@@ -434,6 +530,8 @@ Stream.prototype.loadInitialData = function () {
         self.chart.xAxis[0].setExtremes();
 
         page.updateKnownMaxRange(data);
+
+        self.setExportDataURL(settings.url);
     }).always(function () {
         self.hideLoading();
     });
@@ -508,6 +606,8 @@ Stream.prototype.loadData = function (event) {
     }, function (data, textStatus, jqXHR) {
         assert.equal(data.id, self.id);
 
+        var settings = this;
+
         self.lastRangeStart = range.start;
         self.lastRangeEnd = range.end;
 
@@ -522,6 +622,8 @@ Stream.prototype.loadData = function (event) {
         self.hideLoading();
 
         page.updateKnownMaxRange(data);
+
+        self.setExportDataURL(settings.url);
     }).fail(function () {
         self.hideLoading();
     });
