@@ -371,16 +371,16 @@ Stream.prototype.convertDatapoint = function (datapoint) {
     if (_.isObject(datapoint.v)) {
         return {
             'main': _.map(self.mainTypes, function (mainType, i) {
-                return [t].concat(_.map(mainType.keys, function (key, j) {return datapoint.v[key];}));
+                return [t].concat(_.map(mainType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
             }),
             'range': _.map(self.rangeTypes, function (rangeType, i) {
-                return [t].concat(_.map(rangeType.keys, function (key, j) {return datapoint.v[key];}));
+                return [t].concat(_.map(rangeType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
             })
         }
     }
     else {
         return {
-            'main': [[t].concat(_.map(self.mainTypes[0].keys, function (key, i) {return datapoint.v;}))],
+            'main': [[t].concat(_.map(self.mainTypes[0].keys, function (key, i) {return parseFloat(datapoint.v);}))],
             'range': []
         }
     }
