@@ -15,8 +15,8 @@ Contents
    installation
    usage
 
-Source Code and Issue Tracker
------------------------------
+Source Code, Issue Tracker and Mailing List
+-------------------------------------------
 
 For development GitHub_ is used, so source code and issue tracker is found
 there_. If you have any questions or if you want to
@@ -26,8 +26,8 @@ discuss the project, use `development mailing list`_.
 .. _there: https://github.com/wlanslovenija/django-datastream
 .. _development mailing list: https://wlan-si.net/lists/info/development
 
-Indices and tables
+Indices and Tables
 ==================
+
 * :ref:`genindex`
 * :ref:`search`
-
