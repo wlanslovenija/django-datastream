@@ -32,6 +32,7 @@ QUERY_END_EXCLUSIVE = 'end_exclusive'
 QUERY_VALUE_DOWNSAMPLERS = 'value_downsamplers'
 QUERY_TIME_DOWNSAMPLERS = 'time_downsamplers'
 QUERY_REVERSE = 'reverse'
+QUERY_TAGS = 'tags'
 
 
 class StreamsList(datastream_api.ResultsBase):
@@ -88,8 +89,21 @@ class StreamResource(resources.Resource):
         return kwargs
 
     def get_object_list(self, request):
-        # TODO: Provide users a way to query streams by tags (is this the same as allow filtering?) (use ListQuerySet from django-tastypie-mongoengine?)
-        return StreamsList(datastream.find_streams())
+        query_tags = {}
+        for key, value in request.GET.iteritems():
+            if not key.startswith('%s__' % QUERY_TAGS):
+                continue
+
+            key = key.split('__')[1:]
+            if not key:
+                continue
+
+            parent_tag = query_tags
+            for tag in key[:-1]:
+                parent_tag = parent_tag.setdefault(tag, {})
+            parent_tag[key[-1]] = value
+
+        return StreamsList(datastream.find_streams(query_tags))
 
     def apply_sorting(self, obj_list, options=None):
         # TODO: Allow sorting (use ListQuerySet from django-tastypie-mongoengine?)
