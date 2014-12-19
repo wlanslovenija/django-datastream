@@ -14,6 +14,11 @@ class DatastreamSerializer(serializers.Serializer):
     def from_json(self, content):
         return ujson.loads(content)
 
+    def to_simple(self, data, options):
+        if hasattr(data, '__json__'):
+            return data
+        return super(DatastreamSerializer, self).to_simple(data, options)
+
     # We fix RFC 2822 serialization
     # Bug: https://github.com/toastdriven/django-tastypie/pull/656
 
