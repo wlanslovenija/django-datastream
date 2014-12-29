@@ -15,6 +15,11 @@ class DatastreamSerializer(serializers.Serializer):
         return ujson.loads(content)
 
     def to_simple(self, data, options):
+        # In our ujson fork we allow data to have a special
+        # __json__ method which outputs raw JSON to be directly
+        # included in the output. This can speedup serialization
+        # when data is already backed by JSON content.
+        # See https://github.com/esnme/ultrajson/pull/157
         if hasattr(data, '__json__'):
             return data
 

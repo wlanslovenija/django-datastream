@@ -1,11 +1,12 @@
-import json
 import sys
 
 from django import test
 from django.core import management, urlresolvers
 from django.test import client
 
-from django_datastream import datastream
+import ujson
+
+from django_datastream import datastream, serializers
 
 
 class BasicTest(test.TestCase):
@@ -20,7 +21,7 @@ class BasicTest(test.TestCase):
     def test_basic(self):
         response = self.c.get(self.resourceListURI('stream'))
         self.assertEqual(response.status_code, 200)
-        response = json.loads(response.content)
+        response = ujson.loads(response.content)
 
         self.assertEqual(response['objects'], [])
 
@@ -28,7 +29,7 @@ class BasicTest(test.TestCase):
 
         response = self.c.get(self.resourceListURI('stream'))
         self.assertEqual(response.status_code, 200)
-        response = json.loads(response.content)
+        response = ujson.loads(response.content)
 
         self.assertEqual(response['meta']['total_count'], 3)
 
@@ -49,7 +50,7 @@ class BasicTest(test.TestCase):
 
         response = self.c.get(stream_uri)
         self.assertEqual(response.status_code, 200)
-        response = json.loads(response.content)
+        response = ujson.loads(response.content)
 
         self.assertEqual(response['id'], stream['id'])
         self.assertEqual(response['resource_uri'], stream_uri)
@@ -78,3 +79,35 @@ class BasicTest(test.TestCase):
 
         self.assertTrue('t' in response['datapoints'][0])
         self.assertTrue('v' in response['datapoints'][0])
+
+    def test_ujson(self):
+        # We are using a ujson fork which allows data to have a special __json__ method which
+        # outputs raw JSON to be directly included in the output. This can speedup serialization
+        # when data is already backed by JSON content.
+        # See https://github.com/esnme/ultrajson/pull/157
+
+        class JSONString(str):
+            __slots__ = ()
+
+            def __json__(self):
+                return self
+
+        data = {
+            'first': {
+                'foo': 'bar',
+            },
+            'second': [1, 2, 3],
+        }
+
+        data_with_json = {
+            'first': JSONString(ujson.dumps(data['first'])),
+            'second': JSONString(ujson.dumps(data['second'])),
+        }
+
+        self.assertEqual(data, ujson.loads(ujson.dumps(data)))
+        self.assertEqual(data, ujson.loads(ujson.dumps(data_with_json)))
+
+        serializer = serializers.DatastreamSerializer()
+
+        self.assertEqual(data, serializer.from_json(serializer.to_json(data)))
+        self.assertEqual(data, serializer.from_json(serializer.to_json(data_with_json)))

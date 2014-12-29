@@ -36,7 +36,7 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         dependency_links = [
-            'https://github.com/wlanslovenija/ultrajson/tarball/946d4dfe1019b37f57a6a74328940d35b59b4245#egg=ujson-1.34',
+            'https://github.com/wlanslovenija/ultrajson/tarball/a8f0f0f1010956b27bf0c2cb5e52d85bb84e273a#egg=ujson-1.34',
         ],
         install_requires=[
             'Django>=1.5',
