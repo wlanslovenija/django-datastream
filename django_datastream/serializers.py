@@ -17,6 +17,7 @@ class DatastreamSerializer(serializers.Serializer):
     def to_simple(self, data, options):
         if hasattr(data, '__json__'):
             return data
+
         return super(DatastreamSerializer, self).to_simple(data, options)
 
     # We fix RFC 2822 serialization

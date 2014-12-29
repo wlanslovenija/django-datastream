@@ -1,9 +1,9 @@
+import json
 import sys
 
 from django import test
 from django.core import management, urlresolvers
 from django.test import client
-from django.utils import simplejson as json
 
 from django_datastream import datastream
 
@@ -32,7 +32,7 @@ class BasicTest(test.TestCase):
 
         self.assertEqual(response['meta']['total_count'], 3)
 
-        for i, stream in enumerate(response['objects']):
+        for stream in response['objects']:
             tags = stream['tags']
 
             self.assertEqual(tags['title'], 'Stream %d' % tags['stream_number'], tags['title'])

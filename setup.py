@@ -36,7 +36,7 @@ if __name__ == '__main__':
         include_package_data=True,
         zip_safe=False,
         install_requires=[
-            'Django>=1.4',
+            'Django>=1.5',
             'datastream>=0.3.0',
             'django-tastypie>=0.9.16',
             'ujson>=1.33',

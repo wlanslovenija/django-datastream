@@ -126,18 +126,18 @@ class Command(base.BaseCommand):
                 downsamplers = []
 
             if types is not None:
-                type = types[i]
+                typ = types[i]
             else:
-                type = ('int', '')
+                typ = ('int', '')
 
             visualization_value_downsamplers = []
             for downsampler in ['mean', 'min', 'max']:
                 if downsampler in downsamplers:
                     visualization_value_downsamplers.append(downsampler)
 
-            type_constructor, random_function, default_domain = TYPES[type[0]]
-            domain = type[1] or default_domain
-            domain_range = map(type_constructor, domain.split(','))
+            type_constructor, random_function, default_domain = TYPES[typ[0]]
+            domain = typ[1] or default_domain
+            domain_range = [type_constructor(d) for d in domain.split(',')]
 
             stream_id = datastream.ensure_stream(
                 {'title': 'Stream %d' % i},
@@ -146,7 +146,7 @@ class Command(base.BaseCommand):
                     'unit_description': 'random, domain: %s' % domain,
                     'stream_number': i,
                     'visualization': {
-                        'type': 'state' if type is 'enum' else 'line',
+                        'type': 'state' if typ is 'enum' else 'line',
                         'hidden': False,
                         'value_downsamplers': visualization_value_downsamplers,
                         'time_downsamplers': ['mean'],
@@ -159,7 +159,7 @@ class Command(base.BaseCommand):
                 datastream.Granularity.Seconds,
             )
 
-            streams.append((stream_id, type))
+            streams.append((stream_id, typ))
 
         span = span.split(' ')
         if len(span) == 1 and span[0]:
@@ -186,7 +186,7 @@ class Command(base.BaseCommand):
         elif len(span) == 2:
             try:
                 # TODO: Support also timezone in the datetime format
-                span_from, span_to = map(lambda x: datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S'), span)
+                span_from, span_to = [datetime.datetime.strptime(x, '%Y-%m-%dT%H:%M:%S') for x in span]
             except ValueError:
                 raise base.CommandError("Use time format 'yyyy-mm-ddThh:mm:ss' (i.e. '2007-03-04T21:08:12').")
 
@@ -199,9 +199,9 @@ class Command(base.BaseCommand):
                 self.stdout.write("Appending %d values from %s to %s.\n" % (((td.seconds + td.days * 24 * 3600) // interval * len(streams)), span_from, span_to))
 
             while span_from <= span_to:
-                for stream_id, (type, domain) in streams:
-                    type_constructor, random_function, default_domain = TYPES[type]
-                    value = random_function(*map(type_constructor, (domain or default_domain).split(',')))
+                for stream_id, (typ, domain) in streams:
+                    type_constructor, random_function, default_domain = TYPES[typ]
+                    value = random_function(*[type_constructor(d) for d in (domain or default_domain).split(',')])
                     datastream.append(stream_id, value, span_from)
 
                 span_from += datetime.timedelta(seconds=interval)
@@ -218,9 +218,9 @@ class Command(base.BaseCommand):
             self.stdout.write("Appending real-time value(s) to stream(s) every %s seconds.\n" % interval)
 
         while True:
-            for stream_id, (type, domain) in streams:
-                type_constructor, random_function, default_domain = TYPES[type]
-                value = random_function(*map(type_constructor, (domain or default_domain).split(',')))
+            for stream_id, (typ, domain) in streams:
+                type_constructor, random_function, default_domain = TYPES[typ]
+                value = random_function(*[type_constructor(d) for d in (domain or default_domain).split(',')])
 
                 if verbose > 1:
                     self.stdout.write("Appending value '%s' to stream '%s'.\n" % (value, stream_id))

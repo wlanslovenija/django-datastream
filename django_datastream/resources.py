@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import datetime
 
 import pytz
@@ -8,7 +6,7 @@ from django.conf import settings
 
 from tastypie import bundle as tastypie_bundle, exceptions, fields as tastypie_fields, resources
 
-from . import datastream, fields, paginator, serializers
+from . import datastream, fields, paginator as datastream_paginator, serializers
 from datastream import api as datastream_api, exceptions as datastream_exceptions
 
 
@@ -64,8 +62,8 @@ class StreamResource(resources.Resource):
         detail_allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
         serializer = serializers.DatastreamSerializer()
-        paginator_class = paginator.Paginator
-        detail_paginator_class = paginator.DetailPaginator
+        paginator_class = datastream_paginator.Paginator
+        detail_paginator_class = datastream_paginator.DetailPaginator
         detail_limit = getattr(settings, 'API_DETAIL_LIMIT_PER_PAGE', 100)
         max_detail_limit = 10000
 

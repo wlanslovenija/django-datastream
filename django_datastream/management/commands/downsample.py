@@ -3,8 +3,6 @@ import optparse
 
 from django.core.management import base
 
-import pytz
-
 from django_datastream import datastream
 
 
@@ -17,25 +15,6 @@ class Command(base.BaseCommand):
     )
 
     help = "Downsample all pending streams."
-
-    def last_timestamp(self, streams):
-        timestamp = datetime.datetime.min
-        if timestamp.tzinfo is None:
-            timestamp = timestamp.replace(tzinfo=pytz.utc)
-
-        for stream_id, types in streams:
-            try:
-                t = datastream.get_data(stream_id, datastream.Granularity.Seconds, datetime.datetime.min, datetime.datetime.max, reverse=True)[0]['t']
-
-                if t.tzinfo is None:
-                    t = t.replace(tzinfo=pytz.utc)
-
-                if t > timestamp:
-                    timestamp = t
-            except IndexError:
-                continue
-
-        return timestamp
 
     def handle(self, *args, **options):
         verbose = int(options.get('verbosity'))

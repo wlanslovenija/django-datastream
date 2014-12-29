@@ -1,6 +1,5 @@
 import os
-
-from django.utils import unittest
+import unittest
 
 
 def suite():
