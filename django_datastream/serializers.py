@@ -26,7 +26,7 @@ class DatastreamSerializer(serializers.Serializer):
         return super(DatastreamSerializer, self).to_simple(data, options)
 
     # We fix RFC 2822 serialization
-    # Bug: https://github.com/toastdriven/django-tastypie/pull/656
+    # See https://github.com/toastdriven/django-tastypie/pull/656
 
     def format_datetime(self, data):
         if self.datetime_formatting != 'rfc-2822':

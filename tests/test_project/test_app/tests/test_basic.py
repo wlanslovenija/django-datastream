@@ -1,10 +1,14 @@
+import datetime
 import sys
 
 from django import test
 from django.core import management, urlresolvers
 from django.test import client
+from django.utils import timezone, translation
 
 import ujson
+
+from tastypie import serializers as tastypie_serializers
 
 from django_datastream import datastream, serializers
 
@@ -111,3 +115,24 @@ class BasicTest(test.TestCase):
 
         self.assertEqual(data, serializer.from_json(serializer.to_json(data)))
         self.assertEqual(data, serializer.from_json(serializer.to_json(data_with_json)))
+
+    def test_dates_serialization(self):
+        # RFC 2822 dates might be generated wrong if non English locale is being active.
+        # See https://github.com/toastdriven/django-tastypie/pull/656
+
+        date = datetime.datetime(2014, 5, 5, 1, 5, 0, tzinfo=timezone.utc)
+
+        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+
+        # We test also Tastypie serializer, to see if they fix it at some point.
+        tastypie_serializer = tastypie_serializers.Serializer(datetime_formatting='rfc-2822')
+
+        with translation.override('sl'):
+            self.assertEqual('Mon, 05 May 2014 01:05:00 +0000', serializer.format_datetime(date))
+            self.assertNotEqual('Mon, 05 May 2014 01:05:00 +0000', tastypie_serializer.format_datetime(date))
+
+            self.assertEqual('05 May 2014', serializer.format_date(date))
+            self.assertNotEqual('05 May 2014', tastypie_serializer.format_date(date))
+
+            self.assertEqual('01:05:00 +0000', serializer.format_time(date))
+            self.assertNotEqual('01:05:00 +0000', tastypie_serializer.format_time(date))
