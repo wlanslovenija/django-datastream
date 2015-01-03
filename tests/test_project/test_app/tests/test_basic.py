@@ -1,69 +1,199 @@
 import datetime
+import os
 import sys
+import unittest
+import urllib
 
-from django import test
-from django.core import management, urlresolvers
-from django.test import client
+from django.core import management
 from django.utils import timezone, translation
 
 import ujson
 
 from tastypie import serializers as tastypie_serializers
 
-from django_datastream import datastream, serializers
+from django_datastream import datastream, resources, serializers, test_runner
+
+try:
+    # Exists when Django >= 1.7.
+    from django.apps import apps
+except ImportError:
+    apps = None
 
 
-class BasicTest(test.TestCase):
-    api_name = 'v1'
-    c = client.Client()
-    value_downsamplers = datastream.backend.value_downsamplers
-    time_downsamplers = datastream.backend.time_downsamplers
+class BasicTest(test_runner.ResourceTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super(BasicTest, cls).setUpClass()
 
-    def resourceListURI(self, resource_name):
-        return urlresolvers.reverse('api_dispatch_list', kwargs={'api_name': self.api_name, 'resource_name': resource_name})
+        cls.value_downsamplers = datastream.backend.value_downsamplers
+        cls.time_downsamplers = datastream.backend.time_downsamplers
 
-    def test_basic(self):
-        response = self.c.get(self.resourceListURI('stream'))
-        self.assertEqual(response.status_code, 200)
-        response = ujson.loads(response.content)
+        # We first remove all streams.
+        datastream.delete_streams()
 
-        self.assertEqual(response['objects'], [])
-
+        # And then create 3.
         management.execute_from_command_line([sys.argv[0], 'dummystream', '--types=int(0,10),float(-2,2),float(0,100)', '--span=1h', '--no-real-time'])
 
-        response = self.c.get(self.resourceListURI('stream'))
-        self.assertEqual(response.status_code, 200)
-        response = ujson.loads(response.content)
+        cls.streams = [datastream.Stream(stream) for stream in datastream.find_streams()]
 
-        self.assertEqual(response['meta']['total_count'], 3)
+        for stream in cls.streams:
+            # We have to convert these to unicode strings for tests to work.
+            stream.highest_granularity = unicode(stream.highest_granularity)
+            stream.value_downsamplers = [unicode(value_downsampler) for value_downsampler in stream.value_downsamplers]
+            stream.time_downsamplers = [unicode(time_downsampler) for time_downsampler in stream.time_downsamplers]
 
-        for stream in response['objects']:
-            tags = stream['tags']
+    def test_api_uris(self):
+        # URIs have to be stable.
 
-            self.assertEqual(tags['title'], 'Stream %d' % tags['stream_number'], tags['title'])
+        self.assertEqual('/api/v1/stream/', self.resource_list_uri('stream'))
+        self.assertEqual('/api/v1/stream/schema/', self.resource_schema_uri('stream'))
+
+    def test_get_list_all(self):
+        data = self.get_list('stream',
+            offset=0,
+            limit=0,
+        )
+
+        self.assertEqual(3, len(data['objects']))
+        self.assertEqual(len(self.streams), len(data['objects']))
+
+        for i, stream in enumerate(data['objects']):
+            self.assertEqual(self.streams[i].id, stream.pop('id'))
+
+            tags = stream.pop('tags')
+
+            self.assertEqual('Stream %d' % tags['stream_number'], tags['title'])
             self.assertTrue('visualization' in tags, tags.get('visualization', None))
             self.assertTrue('description' in tags, tags.get('description', None))
 
-            self.assertItemsEqual(stream['value_downsamplers'], self.value_downsamplers)
-            self.assertItemsEqual(stream['time_downsamplers'], self.time_downsamplers)
-            self.assertEqual(stream['highest_granularity'], 'seconds')
+            self.assertEqual(self.streams[i].tags, tags)
 
-        stream = response['objects'][-1]
+            self.assertItemsEqual(self.value_downsamplers, stream['value_downsamplers'])
+            self.assertItemsEqual(self.time_downsamplers, stream['time_downsamplers'])
+            self.assertEqual('seconds', stream['highest_granularity'])
 
-        stream_uri = stream['resource_uri']
+            self.assertEqual(self.streams[i].value_downsamplers, stream.pop('value_downsamplers'))
+            self.assertEqual(self.streams[i].time_downsamplers, stream.pop('time_downsamplers'))
+            self.assertEqual(self.streams[i].highest_granularity, stream.pop('highest_granularity'))
 
-        response = self.c.get(stream_uri)
-        self.assertEqual(response.status_code, 200)
-        response = ujson.loads(response.content)
+            # We manually construct URI to make sure it is like we assume it is.
+            self.assertEqual('%s%s/' % (self.resource_list_uri('stream'), self.streams[i].id), stream.pop('resource_uri'))
 
-        self.assertEqual(response['id'], stream['id'])
-        self.assertEqual(response['resource_uri'], stream_uri)
-        self.assertEqual(response['tags'], tags)
-        self.assertItemsEqual(response['value_downsamplers'], self.value_downsamplers)
-        self.assertItemsEqual(response['time_downsamplers'], self.time_downsamplers)
-        self.assertEqual(response['highest_granularity'], 'seconds')
+            # It should be empty now, nothing else in. Especially not "datapoints".
+            self.assertEqual({}, stream)
 
-        self.assertEqual(response['query_params'], {
+        self.assertMetaEqual({
+            u'total_count': 3,
+            # We specified 0 for limit in the request, so max limit should be used.
+            u'limit': resources.StreamResource._meta.max_limit,
+            u'offset': 0,
+            u'next': None,
+            u'previous': None,
+        }, data['meta'])
+
+    def test_get_list_offset(self):
+        data = self.get_list('stream',
+            offset=1,
+            limit=0,
+        )
+
+        streams = data['objects']
+        self.assertEqual([stream.id for stream in self.streams[1:]], [stream['id'] for stream in streams])
+
+        self.assertMetaEqual({
+            u'total_count': 3,
+            # We specified 0 for limit in the request, so max limit should be used.
+            u'limit': resources.StreamResource._meta.max_limit,
+            u'offset': 1,
+            u'next': None,
+            u'previous': u'%s?format=json&limit=1&offset=0' % self.resource_list_uri('stream'),
+        }, data['meta'])
+
+    def test_get_list_page(self):
+        data = self.get_list('stream',
+            offset=1,
+            limit=1,
+        )
+
+        streams = data['objects']
+        self.assertEqual([stream.id for stream in self.streams[1:2]], [stream['id'] for stream in streams])
+
+        self.assertMetaEqual({
+            u'total_count': 3,
+            u'limit': 1,
+            u'offset': 1,
+            u'next': u'%s?format=json&limit=1&offset=2' % self.resource_list_uri('stream'),
+            u'previous': u'%s?format=json&limit=1&offset=0' % self.resource_list_uri('stream'),
+        }, data['meta'])
+
+    def test_get_list_last_page(self):
+        data = self.get_list('stream',
+            offset=1,
+            limit=100,
+        )
+
+        streams = data['objects']
+        self.assertEqual([stream.id for stream in self.streams[1:]], [stream['id'] for stream in streams])
+
+        self.assertMetaEqual({
+            u'total_count': 3,
+            u'limit': 100,
+            u'offset': 1,
+            u'next': None,
+            u'previous': u'%s?format=json&limit=1&offset=0' % self.resource_list_uri('stream'),
+        }, data['meta'])
+
+    def test_tags_filter(self):
+        for offset in (0, 1, 2):
+            for limit in (0, 1, 20):
+                for field_filter, filter_function in (
+                    ({'tags__stream_id': self.streams[0].id}, lambda stream: stream.id == self.streams[0].id),
+                    # It should be "stream_id", not "id".
+                    ({'tags__id': self.streams[0].id}, lambda stream: False),
+               ):
+                    kwargs = {
+                        'offset': offset,
+                        'limit': limit,
+                    }
+                    kwargs.update(field_filter)
+                    data = self.get_list('stream', **kwargs)
+
+                    filtered_streams = [stream.id for stream in filter(filter_function, self.streams)]
+                    streams = data['objects']
+                    self.assertEqual(filtered_streams[offset:offset + limit if limit else None], [stream['id'] for stream in streams], 'offset=%s, limit=%s, filter=%s' % (offset, limit, field_filter))
+
+                    key = field_filter.keys()[0]
+                    value = field_filter.values()[0]
+                    if not isinstance(value, list):
+                        value = [value]
+                    value = [v if isinstance(v, basestring) else str(v) for v in value]
+                    uri_filter = '&'.join(['%s=%s' % (key, urllib.quote(v)) for v in value])
+
+                    limit = limit or resources.StreamResource._meta.max_limit
+
+                    if 0 < offset < limit:
+                        previous_limit = offset
+                    else:
+                        previous_limit = limit
+
+                    self.assertMetaEqual({
+                        u'total_count': len(filtered_streams),
+                        u'limit': limit,
+                        u'offset': offset,
+                        u'next': u'%s?%s&format=json&limit=%s&offset=%s' % (self.resource_list_uri('stream'), uri_filter, limit, offset + limit) if limit and len(filtered_streams) > offset + limit else None,
+                        u'previous': u'%s?%s&format=json&limit=%s&offset=%s' % (self.resource_list_uri('stream'), uri_filter, previous_limit, offset - previous_limit) if offset != 0 else None,
+                    }, data['meta'])
+
+    @unittest.skipUnless(apps, "Skipping for Django < 1.7")
+    def test_schema(self):
+        # We need Django 1.7+ for apps.
+        with file(os.path.join(apps.get_app_config('test_app').path, 'tests', 'schema.json'), 'r') as f:
+            schema = ujson.load(f)
+
+        data = self.get_schema('stream')
+
+        self.assertEqual(schema, data)
+
             u'end': None,
             u'reverse': False,
             u'end_exclusive': None,
