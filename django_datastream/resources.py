@@ -67,7 +67,7 @@ class StreamResource(resources.Resource):
         detail_limit = getattr(settings, 'API_DETAIL_LIMIT_PER_PAGE', 100)
         max_detail_limit = 10000
 
-    # TODO: Set help text
+    # TODO: Set help text (improve field types/descriptions in the schema)
     id = tastypie_fields.CharField(attribute='id', null=False, blank=False, readonly=True, unique=True, help_text=None)
     value_downsamplers = tastypie_fields.ListField(attribute='value_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     time_downsamplers = tastypie_fields.ListField(attribute='time_downsamplers', null=False, blank=False, readonly=True, help_text=None)
@@ -123,6 +123,7 @@ class StreamResource(resources.Resource):
         paginator = self._meta.detail_paginator_class(request.GET, data.data['datapoints'], resource_uri=data.data['resource_uri'], limit=self._meta.detail_limit, max_limit=self._meta.max_detail_limit, collection_name='datapoints')
         page = paginator.page()
 
+        # TODO: Is really necessary to make a list here?
         data.data['datapoints'] = list(page['datapoints'])
         data.data.setdefault('meta', {}).update(page['meta'])
 
