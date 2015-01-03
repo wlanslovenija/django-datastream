@@ -62,7 +62,7 @@ class StreamResource(resources.Resource):
         detail_allowed_methods = ('get',)
         only_detail_fields = ('datapoints',)
         serializer = serializers.DatastreamSerializer()
-        paginator_class = datastream_paginator.Paginator
+        paginator_class = datastream_paginator.BatchSizePaginator
         detail_paginator_class = datastream_paginator.DetailPaginator
         detail_limit = getattr(settings, 'API_DETAIL_LIMIT_PER_PAGE', 100)
         max_detail_limit = 10000
