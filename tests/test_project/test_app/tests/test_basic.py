@@ -172,6 +172,11 @@ class BasicTest(test_runner.ResourceTestCase):
                     ({'tags__visualization__value_downsamplers__all': ['mean', 'foobar']}, lambda stream: False),
                     ({'tags__visualization__value_downsamplers__all': 'mean,min'}, lambda stream: 'mean' in stream.tags['visualization']['value_downsamplers'] and 'min' in stream.tags['visualization']['value_downsamplers']),
                     ({'tags__visualization__value_downsamplers__all': 'mean,foobar'}, lambda stream: False),
+                    # Only filtering by tags works. No filtering is done.
+                    ({'stream_id': self.streams[0].id}, lambda stream: True),
+                    ({'id': self.streams[0].id}, lambda stream: True),
+                    ({'highest_granularity': 'Seconds'}, lambda stream: True),
+                    ({'highest_granularity': 'seconds'}, lambda stream: True),
                 ):
                     kwargs = {
                         'offset': offset,
