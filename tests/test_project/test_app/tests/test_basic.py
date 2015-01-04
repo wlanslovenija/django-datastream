@@ -61,7 +61,7 @@ def parsedate_to_datetime(data):
     dtuple = dtuple[:-1]
     if tz is None:
         return datetime.datetime(*dtuple[:6])
-    return datetime.datetime(*dtuple[:6], tzinfo=timezone.get_fixed_timezone(datetime.timedelta(seconds=tz)))
+    return datetime.datetime(*dtuple[:6], tzinfo=get_fixed_timezone(datetime.timedelta(seconds=tz)))
 
 
 class BasicTest(test_runner.ResourceTestCase):
