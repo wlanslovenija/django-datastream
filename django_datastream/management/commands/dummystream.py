@@ -41,7 +41,7 @@ class Command(base.BaseCommand):
         ),
         optparse.make_option(
             '--types', '-t', action='store', type='string', dest='types',
-            help="Stream types given as comma-separated values of 'int', 'float', or 'enum' (default: empty string). Range can be specified in brackets.",
+            help="Stream types given as comma-separated values of 'int', 'float', or 'enum' (default: int). Domain can be specified in parenthesis (defaults: %s)" % ", ".join(["%s(%s)" % (name, d) for name, (type, f, d) in TYPES.iteritems()]),
         ),
         optparse.make_option(
             '--flush', action='store_true', dest='flush',
@@ -125,7 +125,7 @@ class Command(base.BaseCommand):
                 downsamplers = datastream.backend.value_downsamplers
             else:
                 value_type = 'nominal'
-                downsamplers = []
+                downsamplers = ['count']
 
             if types is not None:
                 typ = types[i]
