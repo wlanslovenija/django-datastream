@@ -77,8 +77,8 @@ class BasicTest(test_runner.ResourceTestCase):
         # We first remove all streams.
         datastream.delete_streams()
 
-        # And then create 3.
-        management.execute_from_command_line([sys.argv[0], 'dummystream', '--types=int(0,10),float(-2,2),float(0,100)', '--span=1h', '--no-real-time'])
+        # And then create 4.
+        management.execute_from_command_line([sys.argv[0], 'dummystream', '--types=int(0,10),float(-2,2),float(0,100),enum(a,b,c)', '--span=1h', '--no-real-time'])
 
         cls.streams = [datastream.Stream(stream) for stream in datastream.find_streams()]
 
@@ -139,7 +139,7 @@ class BasicTest(test_runner.ResourceTestCase):
             limit=0,
         )
 
-        self.assertEqual(3, len(data['objects']))
+        self.assertEqual(4, len(data['objects']))
         self.assertEqual(len(self.streams), len(data['objects']))
 
         for i, stream in enumerate(data['objects']):
@@ -153,7 +153,10 @@ class BasicTest(test_runner.ResourceTestCase):
 
             self.assertEqual(self.streams[i].tags, tags)
 
-            self.assertItemsEqual(self.value_downsamplers, stream['value_downsamplers'])
+            if i < 3:
+                self.assertItemsEqual(self.value_downsamplers, stream['value_downsamplers'])
+            else:
+                self.assertItemsEqual(['count'], stream['value_downsamplers'])
             self.assertItemsEqual(self.time_downsamplers, stream['time_downsamplers'])
             self.assertEqual('seconds', stream['highest_granularity'])
 
@@ -168,7 +171,7 @@ class BasicTest(test_runner.ResourceTestCase):
             self.assertEqual({}, stream)
 
         self.assertMetaEqual({
-            u'total_count': 3,
+            u'total_count': len(self.streams),
             # We specified 0 for limit in the request, so max limit should be used.
             u'limit': resources.StreamResource._meta.max_limit,
             u'offset': 0,
@@ -187,7 +190,7 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual([stream.id for stream in self.streams[1:]], [stream['id'] for stream in streams])
 
         self.assertMetaEqual({
-            u'total_count': 3,
+            u'total_count': len(self.streams),
             # We specified 0 for limit in the request, so max limit should be used.
             u'limit': resources.StreamResource._meta.max_limit,
             u'offset': 1,
@@ -206,7 +209,7 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual([stream.id for stream in self.streams[1:2]], [stream['id'] for stream in streams])
 
         self.assertMetaEqual({
-            u'total_count': 3,
+            u'total_count': len(self.streams),
             u'limit': 1,
             u'offset': 1,
             u'next': u'%s?format=json&limit=1&offset=2' % self.resource_list_uri('stream'),
@@ -224,7 +227,7 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual([stream.id for stream in self.streams[1:]], [stream['id'] for stream in streams])
 
         self.assertMetaEqual({
-            u'total_count': 3,
+            u'total_count': len(self.streams),
             u'limit': 100,
             u'offset': 1,
             u'next': None,
