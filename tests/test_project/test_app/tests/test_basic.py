@@ -77,8 +77,8 @@ class BasicTest(test_runner.ResourceTestCase):
         # We first remove all streams.
         datastream.delete_streams()
 
-        # And then create 4.
-        management.execute_from_command_line([sys.argv[0], 'dummystream', '--types=int(0,10),float(-2,2),float(0,100),enum(a,b,c)', '--span=1h', '--no-real-time'])
+        # And then create 5.
+        management.execute_from_command_line([sys.argv[0], 'dummystream', '--types=int(0,10),float(-2,2),float(0,100),enum(a,b,c),graph(6,13)', '--span=1h', '--no-real-time'])
 
         cls.streams = [datastream.Stream(stream) for stream in datastream.find_streams()]
 
@@ -139,7 +139,7 @@ class BasicTest(test_runner.ResourceTestCase):
             limit=0,
         )
 
-        self.assertEqual(4, len(data['objects']))
+        self.assertEqual(5, len(data['objects']))
         self.assertEqual(len(self.streams), len(data['objects']))
 
         for i, stream in enumerate(data['objects']):
@@ -309,89 +309,96 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual(schema, data)
 
     def test_get_stream(self):
-        stream = self.streams[0]
         serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
 
-        middle_time = calendar.timegm((stream.earliest_datapoint + (stream.latest_datapoint - stream.earliest_datapoint) / 2).utctimetuple())
-        end_time = calendar.timegm(stream.latest_datapoint.utctimetuple())
+        # Numeric, nominal, and graph streams.
+        for i in (0, 3, 4):
+            stream = self.streams[i]
 
-        # There are 721 datapoints total.
-        for offset in (0, 11, 56, 700):
-            for limit in (0, 5, 40):
-                for reverse in (True, False):
-                    # We test start in test_get_downsampled.
-                    for end in (None, middle_time, end_time):
-                        for exclusive in (True, False):
-                            kwargs = {
-                                'offset': offset,
-                                'limit': limit,
-                            }
-                            params = {}
-                            if reverse:
-                                params.update({'reverse': True})
-                            if end and exclusive:
-                                params.update({'end_exclusive': end})
-                            elif end:
-                                params.update({'end': end})
-                            kwargs.update(params)
+            middle_time = calendar.timegm((stream.earliest_datapoint + (stream.latest_datapoint - stream.earliest_datapoint) / 2).utctimetuple())
+            end_time = calendar.timegm(stream.latest_datapoint.utctimetuple())
 
-                            data = self.get_detail('stream', stream.id, **kwargs)
+            # There are 721 datapoints total.
+            for offset in (0, 11, 700):
+                for limit in (0, 5, 40):
+                    for reverse in (True, False):
+                        # We test start in test_get_downsampled.
+                        for end in (None, middle_time, end_time):
+                            for exclusive in (True, False):
+                                kwargs = {
+                                    'offset': offset,
+                                    'limit': limit,
+                                }
+                                params = {}
+                                if reverse:
+                                    params.update({'reverse': True})
+                                if end and exclusive:
+                                    params.update({'end_exclusive': end})
+                                elif end:
+                                    params.update({'end': end})
+                                kwargs.update(params)
 
-                            self.assertEqual(stream.id, data.pop('id'))
-                            # We manually construct URI to make sure it is like we assume it is.
-                            self.assertEqual(u'%s%s/' % (self.resource_list_uri('stream'), stream.id), data.pop('resource_uri'))
-                            self.assertEqual(stream.tags, data.pop('tags'))
-                            self.assertItemsEqual(self.value_downsamplers, data.pop('value_downsamplers'))
-                            self.assertItemsEqual(self.time_downsamplers, data.pop('time_downsamplers'))
-                            self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
+                                data = self.get_detail('stream', stream.id, **kwargs)
 
-                            if end:
-                                end_string = serializer.format_datetime(datetime.datetime.utcfromtimestamp(end))
+                                self.assertEqual(stream.id, data.pop('id'))
+                                # We manually construct URI to make sure it is like we assume it is.
+                                self.assertEqual(u'%s%s/' % (self.resource_list_uri('stream'), stream.id), data.pop('resource_uri'))
+                                self.assertEqual(stream.tags, data.pop('tags'))
+                                self.assertItemsEqual(self.value_downsamplers, data.pop('value_downsamplers'))
+                                self.assertItemsEqual(self.time_downsamplers, data.pop('time_downsamplers'))
+                                self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
 
-                            self.assertEqual({
-                                u'end': None if not end or exclusive else end_string,
-                                u'reverse': reverse,
-                                u'end_exclusive': end_string if end and exclusive else None,
-                                u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
-                                u'granularity': u'seconds',
-                                u'time_downsamplers': None,
-                                u'start_exclusive': None,
-                                u'value_downsamplers': None,
-                            }, data.pop('query_params'))
+                                if end:
+                                    end_string = serializer.format_datetime(datetime.datetime.utcfromtimestamp(end))
 
-                            stream_datapoints = datastream.get_data(
-                                stream_id=stream.id,
-                                granularity=datastream.Granularity.Seconds,
-                                start=datetime.datetime.min,
-                                end=None if not end or exclusive else datetime.datetime.utcfromtimestamp(end),
-                                start_exclusive=None,
-                                end_exclusive=datetime.datetime.utcfromtimestamp(end) if end and exclusive else None,
-                                reverse=reverse,
-                                value_downsamplers=None,
-                                time_downsamplers=None,
-                            )
-                            # We store the length before we maybe slice it in assertEqualDatapoints.
-                            stream_datapoints_length = len(stream_datapoints)
-                            self.assertEqualDatapoints(stream_datapoints, offset, limit, data.pop('datapoints'), 'offset=%s, limit=%s, reverse=%s, end=%s, exclusive=%s' % (offset, limit, reverse, end, exclusive))
+                                self.assertEqual({
+                                    u'end': None if not end or exclusive else end_string,
+                                    u'reverse': reverse,
+                                    u'end_exclusive': end_string if end and exclusive else None,
+                                    u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
+                                    u'granularity': u'seconds',
+                                    u'time_downsamplers': None,
+                                    u'start_exclusive': None,
+                                    u'value_downsamplers': None,
+                                }, data.pop('query_params'))
 
-                            if 0 < offset < limit:
-                                previous_limit = offset
-                            else:
-                                previous_limit = limit
+                                stream_datapoints = datastream.get_data(
+                                    stream_id=stream.id,
+                                    granularity=datastream.Granularity.Seconds,
+                                    start=datetime.datetime.min,
+                                    end=None if not end or exclusive else datetime.datetime.utcfromtimestamp(end),
+                                    start_exclusive=None,
+                                    end_exclusive=datetime.datetime.utcfromtimestamp(end) if end and exclusive else None,
+                                    reverse=reverse,
+                                    value_downsamplers=None,
+                                    time_downsamplers=None,
+                                )
+                                # We store the length before we maybe slice it in assertEqualDatapoints.
+                                stream_datapoints_length = len(stream_datapoints)
+                                self.assertEqualDatapoints(stream_datapoints, offset, limit, data.pop('datapoints'), 'offset=%s, limit=%s, reverse=%s, end=%s, exclusive=%s' % (offset, limit, reverse, end, exclusive))
 
-                            params = '&'.join(['%s=%s' % (k, urllib.quote(str(v))) for k, v in params.iteritems()])
+                                if 0 < offset < limit:
+                                    previous_limit = offset
+                                else:
+                                    previous_limit = limit
 
-                            self.assertMetaEqual({
-                                u'total_count': stream_datapoints_length,
-                                # For datapoints (details), limit should always be the same as we specified.
-                                u'limit': limit,
-                                u'offset': offset,
-                                u'next': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', limit, offset + limit) if limit and stream_datapoints_length > offset + limit else None,
-                                u'previous': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', previous_limit, offset - previous_limit) if limit and offset != 0 else None,
-                            }, data.pop('meta'))
+                                params = '&'.join(['%s=%s' % (k, urllib.quote(str(v))) for k, v in params.iteritems()])
 
-                            # We should check everything.
-                            self.assertEqual({}, data)
+                                self.assertMetaEqual({
+                                    u'total_count': stream_datapoints_length,
+                                    # For datapoints (details), limit should always be the same as we specified.
+                                    u'limit': limit,
+                                    u'offset': offset,
+                                    u'next': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', limit, offset + limit) if limit and stream_datapoints_length > offset + limit else None,
+                                    u'previous': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', previous_limit, offset - previous_limit) if limit and offset != 0 else None,
+                                }, data.pop('meta'))
+
+                                # We should check everything.
+                                self.assertEqual({}, data)
+
+                                # This test takes long. We output ? regularly so that Travis CI does not timeout.
+                                sys.stdout.write('?')
+                                sys.stdout.flush()
 
     def test_get_downsampled(self):
         stream = self.streams[0]
@@ -413,7 +420,7 @@ class BasicTest(test_runner.ResourceTestCase):
 
         for granularity in ('10seconds', 'S'):
             # There are 360 datapoints total.
-            for offset in (0, 11, 56, 331):
+            for offset in (0, 11, 331):
                 for limit in (0, 5, 40):
                     for reverse in (True, False):
                         # We test end in test_get_stream.
