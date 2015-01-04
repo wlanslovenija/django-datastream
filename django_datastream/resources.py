@@ -82,7 +82,6 @@ class StreamResource(BaseResource):
     class Meta:
         list_allowed_methods = ('get',)
         detail_allowed_methods = ('get',)
-        only_detail_fields = ('datapoints',)
         serializer = serializers.DatastreamSerializer()
         paginator_class = datastream_paginator.BatchSizePaginator
         detail_paginator_class = datastream_paginator.DetailPaginator
@@ -96,7 +95,8 @@ class StreamResource(BaseResource):
     highest_granularity = tastypie_fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = tastypie_fields.DictField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
 
-    datapoints = fields.DatapointsField(attribute='datapoints', null=True, blank=False, readonly=True, help_text=None)
+    # We show datapoints only in detail view. And we allow pagination over them.
+    datapoints = fields.DatapointsField(attribute='datapoints', null=True, blank=False, readonly=True, help_text=None, use_in='detail')
 
     def detail_uri_kwargs(self, bundle_or_obj):
         kwargs = {}
@@ -136,21 +136,13 @@ class StreamResource(BaseResource):
     def obj_get_list(self, bundle, **kwargs):
         return self.get_object_list(bundle.request)
 
-    def alter_list_data_to_serialize(self, request, data):
-        data = super(StreamResource, self).alter_list_data_to_serialize(request, data)
-        for obj in data['objects']:
-            for field_name in self._meta.only_detail_fields:
-                del obj.data[field_name]
-        return data
-
     def alter_detail_data_to_serialize(self, request, data):
         data.data['query_params'] = self._get_query_params(request, data.obj)
 
         paginator = self._meta.detail_paginator_class(request.GET, data.data['datapoints'], resource_uri=data.data['resource_uri'], limit=self._meta.detail_limit, max_limit=self._meta.max_detail_limit, collection_name='datapoints')
         page = paginator.page()
 
-        # TODO: Is really necessary to make a list here?
-        data.data['datapoints'] = list(page['datapoints'])
+        data.data['datapoints'] = page['datapoints']
         data.data.setdefault('meta', {}).update(page['meta'])
 
         return data

@@ -1,8 +1,12 @@
+import itertools
+
 from django.utils import datetime_safe, feedgenerator, timezone
 
 from tastypie import serializers
 
 import ujson
+
+import datastream
 
 
 class DatastreamSerializer(serializers.Serializer):
@@ -22,6 +26,9 @@ class DatastreamSerializer(serializers.Serializer):
         # See https://github.com/esnme/ultrajson/pull/157
         if hasattr(data, '__json__'):
             return data
+
+        if isinstance(data, datastream.Datapoints):
+            return itertools.imap(lambda d: self.to_simple(d, options), data)
 
         return super(DatastreamSerializer, self).to_simple(data, options)
 
