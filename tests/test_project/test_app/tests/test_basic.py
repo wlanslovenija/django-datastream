@@ -49,7 +49,8 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual('/api/v1/stream/schema/', self.resource_schema_uri('stream'))
 
     def test_get_list_all(self):
-        data = self.get_list('stream',
+        data = self.get_list(
+            'stream',
             offset=0,
             limit=0,
         )
@@ -92,7 +93,8 @@ class BasicTest(test_runner.ResourceTestCase):
         }, data['meta'])
 
     def test_get_list_offset(self):
-        data = self.get_list('stream',
+        data = self.get_list(
+            'stream',
             offset=1,
             limit=0,
         )
@@ -110,7 +112,8 @@ class BasicTest(test_runner.ResourceTestCase):
         }, data['meta'])
 
     def test_get_list_page(self):
-        data = self.get_list('stream',
+        data = self.get_list(
+            'stream',
             offset=1,
             limit=1,
         )
@@ -127,7 +130,8 @@ class BasicTest(test_runner.ResourceTestCase):
         }, data['meta'])
 
     def test_get_list_last_page(self):
-        data = self.get_list('stream',
+        data = self.get_list(
+            'stream',
             offset=1,
             limit=100,
         )
@@ -168,7 +172,7 @@ class BasicTest(test_runner.ResourceTestCase):
                     ({'tags__visualization__value_downsamplers__all': ['mean', 'foobar']}, lambda stream: False),
                     ({'tags__visualization__value_downsamplers__all': 'mean,min'}, lambda stream: 'mean' in stream.tags['visualization']['value_downsamplers'] and 'min' in stream.tags['visualization']['value_downsamplers']),
                     ({'tags__visualization__value_downsamplers__all': 'mean,foobar'}, lambda stream: False),
-               ):
+                ):
                     kwargs = {
                         'offset': offset,
                         'limit': limit,

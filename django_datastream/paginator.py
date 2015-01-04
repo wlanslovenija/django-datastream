@@ -21,7 +21,7 @@ class Paginator(paginator.Paginator):
         if offset - limit < 0:
             return None
 
-        return self._generate_uri(limit, offset-limit)
+        return self._generate_uri(limit, offset - limit)
 
     def page(self):
         page = super(Paginator, self).page()
