@@ -23,7 +23,7 @@ To get results in JSON format in the browser, you have to append ``?format=json`
 
     /api/v1/stream/?format=json
 
-You can limit the results by filtering on ``tags``:
+You can limit the results by filtering on ``tags``::
 
     /api/v1/stream/?tags__title=Stream%201
     /api/v1/stream/?tags__title__icontains=stream
