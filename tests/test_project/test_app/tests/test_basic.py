@@ -477,8 +477,8 @@ class BasicTest(test_runner.ResourceTestCase):
                                         # We manually construct URI to make sure it is like we assume it is.
                                         self.assertEqual(u'%s%s/' % (self.resource_list_uri('stream'), stream.id), data.pop('resource_uri'))
                                         self.assertEqual(stream.tags, data.pop('tags'))
-                                        self.assertItemsEqual(self.value_downsamplers, data.pop('value_downsamplers'))
-                                        self.assertItemsEqual(self.time_downsamplers, data.pop('time_downsamplers'))
+                                        self.assertItemsEqual(stream.value_downsamplers, data.pop('value_downsamplers'))
+                                        self.assertItemsEqual(stream.time_downsamplers, data.pop('time_downsamplers'))
                                         self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
 
                                         if start:
