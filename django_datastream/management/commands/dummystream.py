@@ -1,4 +1,5 @@
 import datetime
+import itertools
 import optparse
 import random
 import re
@@ -13,8 +14,8 @@ from django_datastream import datastream
 
 re_float = r'[-+]?[0-9]*\.?[0-9]+'
 re_int = r'[-+]?\d+'
-check_types = re.compile(r'^(int(\(%s,%s\))?|float(\(%s,%s\))?|enum(\((\w|,)+\))?|,)*$' % (re_int, re_int, re_float, re_float))
-split_types = re.compile(r'(int|float|enum)(?:\(([^)]+)\))?')
+check_types = re.compile(r'^(int(\(%s,%s\))?|float(\(%s,%s\))?|enum(\((\w|,)+\))?|graph(\(%s,%s\))?|,)*$' % (re_int, re_int, re_float, re_float, re_int, re_int))
+split_types = re.compile(r'(int|float|enum|graph)(?:\(([^)]+)\))?')
 
 DEMO_TYPE = 'int(0,10),float(-2,2),float(0,100)'
 DEMO_SPAN = '2d'
@@ -22,10 +23,52 @@ DEMO_SPAN = '2d'
 DEFAULT_NSTREAMS = 3
 DEFAULT_INTERVAL = 5 # seconds
 
+
+def random_graph(number_of_nodes, number_of_edges):
+    # Produces a graph picked randomly out of the set of all graphs
+    # with number_of_nodes nodes and number_of_edges edges. Based on
+    # NetworkX gnm_random_graph.
+
+    nodes = range(number_of_nodes)
+    graph = {
+        'v': [{'i': i} for i in nodes],
+        'e': [],
+    }
+
+    if number_of_nodes == 1:
+        return graph
+
+    max_edges = number_of_nodes * (number_of_nodes - 1)
+    if number_of_edges >= max_edges:
+        # Complete graph.
+        for f, t in itertools.permutations(nodes, 2):
+            graph['e'].append({
+                'f': f,
+                't': t,
+            })
+        return graph
+
+    edges = set()
+    while len(edges) < number_of_edges:
+        f = random.choice(nodes)
+        t = random.choice(nodes)
+        if f == t or (f, t) in edges:
+            continue
+        else:
+            graph['e'].append({
+                'f': f,
+                't': t,
+            })
+            edges.add((f, t))
+
+    return graph
+
+
 TYPES = {
     'int': (int, random.randint, '0,100'),
     'float': (float, random.uniform, '0,100'),
     'enum': (str, lambda *x: random.choice(x), 'a,b,c'),
+    'graph': (int, random_graph, '4,6'),
 }
 
 
@@ -41,7 +84,7 @@ class Command(base.BaseCommand):
         ),
         optparse.make_option(
             '--types', '-t', action='store', type='string', dest='types',
-            help="Stream types given as comma-separated values of 'int', 'float', or 'enum' (default: int). Domain can be specified in parenthesis (defaults: %s)" % ", ".join(["%s(%s)" % (name, d) for name, (type, f, d) in TYPES.iteritems()]),
+            help="Stream types given as comma-separated values of 'int', 'float', 'enum', or 'graph' (default: int). Domain can be specified in parenthesis (defaults: %s)" % ", ".join(["%s(%s)" % (name, d) for name, (type, f, d) in TYPES.iteritems()]),
         ),
         optparse.make_option(
             '--flush', action='store_true', dest='flush',
@@ -120,17 +163,20 @@ class Command(base.BaseCommand):
 
         streams = []
         for i in range(nstreams):
-            if types is None or types[i][0] != 'enum':
-                value_type = 'numeric'
-                downsamplers = datastream.backend.value_downsamplers
-            else:
-                value_type = 'nominal'
-                downsamplers = ['count']
-
             if types is not None:
                 typ = types[i]
             else:
                 typ = ('int', '')
+
+            if typ[0] == 'enum':
+                value_type = 'nominal'
+                downsamplers = ['count']
+            elif typ[0] == 'graph':
+                value_type = 'graph'
+                downsamplers = ['count']
+            else:
+                value_type = 'numeric'
+                downsamplers = datastream.backend.value_downsamplers
 
             visualization_value_downsamplers = []
             for downsampler in ['mean', 'min', 'max']:
@@ -149,7 +195,7 @@ class Command(base.BaseCommand):
                     'stream_number': i,
                     'visualization': {
                         'type': 'state' if typ is 'enum' else 'line',
-                        'hidden': False,
+                        'hidden': True if typ is 'graph' else False,
                         'value_downsamplers': visualization_value_downsamplers,
                         'time_downsamplers': ['mean'],
                         # A special case just for demo purposes. We set just minimum so that
