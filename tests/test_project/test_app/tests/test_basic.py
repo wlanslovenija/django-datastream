@@ -519,6 +519,10 @@ class BasicTest(test_runner.ResourceTestCase):
                                         # We should check everything.
                                         self.assertEqual({}, data)
 
+                                        # This test takes long. We output ? regularly so that Travis CI does not timeout.
+                                        sys.stdout.write('?')
+                                        sys.stdout.flush()
+
     def test_ujson(self):
         # We are using a ujson fork which allows data to have a special __json__ method which
         # outputs raw JSON to be directly included in the output. This can speedup serialization
