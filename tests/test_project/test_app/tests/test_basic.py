@@ -16,11 +16,40 @@ from tastypie import serializers as tastypie_serializers
 from django_datastream import datastream, resources, serializers, test_runner
 
 try:
-    # Exists when Django >= 1.7.
+    # Available since Django 1.7.
     from django.apps import apps
 except ImportError:
     apps = None
 
+if hasattr(timezone, 'get_fixed_timezone'):
+    # Available since Django 1.7.
+    get_fixed_timezone = timezone.get_fixed_timezone
+else:
+    # Copied from Django 1.7.
+
+    class FixedOffset(datetime.tzinfo):
+        def __init__(self, offset=None, name=None):
+            if offset is not None:
+                self.__offset = datetime.timedelta(minutes=offset)
+            if name is not None:
+                self.__name = name
+
+        def utcoffset(self, dt):
+            return self.__offset
+
+        def tzname(self, dt):
+            return self.__name
+
+        def dst(self, dt):
+            return datetime.timedelta(0)
+
+    def get_fixed_timezone(offset):
+        if isinstance(offset, datetime.timedelta):
+            offset = offset.seconds // 60
+        sign = '-' if offset < 0 else '+'
+        hhmm = '%02d%02d' % divmod(abs(offset), 60)
+        name = sign + hhmm
+        return FixedOffset(offset, name)
 
 # From Python 3.3 email.utils.parsedate_to_datetime.
 def parsedate_to_datetime(data):
