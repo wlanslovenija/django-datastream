@@ -51,6 +51,7 @@ else:
         name = sign + hhmm
         return FixedOffset(offset, name)
 
+
 # From Python 3.3 email.utils.parsedate_to_datetime.
 def parsedate_to_datetime(data):
     if not data:
