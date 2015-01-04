@@ -22,20 +22,24 @@ class DatastreamSuiteRunner(simple.DjangoTestSuiteRunner):
 
 class ResourceTestCase(test.ResourceTestCase):
     api_name = 'v1'
+    namespace = None
     # To always display full diff.
     maxDiff = None
 
     @classmethod
     def resource_list_uri(cls, resource_name):
-        return urlresolvers.reverse('api_dispatch_list', kwargs={'api_name': cls.api_name, 'resource_name': resource_name})
+        namespace_prefix = '%s:' % cls.namespace if cls.namespace else ''
+        return urlresolvers.reverse('%sapi_dispatch_list' % namespace_prefix, kwargs={'api_name': cls.api_name, 'resource_name': resource_name})
 
     @classmethod
     def resource_schema_uri(cls, resource_name):
-        return urlresolvers.reverse('api_get_schema', kwargs={'api_name': cls.api_name, 'resource_name': resource_name})
+        namespace_prefix = '%s:' % cls.namespace if cls.namespace else ''
+        return urlresolvers.reverse('%sapi_get_schema' % namespace_prefix, kwargs={'api_name': cls.api_name, 'resource_name': resource_name})
 
     @classmethod
     def resource_detail_uri(cls, resource_name, pk):
-        return urlresolvers.reverse('api_dispatch_detail', kwargs={'api_name': cls.api_name, 'resource_name': resource_name, 'pk': pk})
+        namespace_prefix = '%s:' % cls.namespace if cls.namespace else ''
+        return urlresolvers.reverse('%sapi_dispatch_detail' % namespace_prefix, kwargs={'api_name': cls.api_name, 'resource_name': resource_name, 'pk': pk})
 
     def get_list(self, resource_name, **kwargs):
         return self.get_uri(self.resource_list_uri(resource_name), **kwargs)
