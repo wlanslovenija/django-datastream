@@ -1,5 +1,7 @@
+import calendar
 import datetime
 import os
+import rfc822
 import sys
 import unittest
 import urllib
@@ -18,6 +20,18 @@ try:
     from django.apps import apps
 except ImportError:
     apps = None
+
+
+# From Python 3.3 email.utils.parsedate_to_datetime.
+def parsedate_to_datetime(data):
+    if not data:
+        return None
+    dtuple = rfc822.parsedate_tz(data)
+    tz = dtuple[-1]
+    dtuple = dtuple[:-1]
+    if tz is None:
+        return datetime.datetime(*dtuple[:6])
+    return datetime.datetime(*dtuple[:6], tzinfo=timezone.get_fixed_timezone(datetime.timedelta(seconds=tz)))
 
 
 class BasicTest(test_runner.ResourceTestCase):
@@ -47,6 +61,14 @@ class BasicTest(test_runner.ResourceTestCase):
 
         self.assertEqual('/api/v1/stream/', self.resource_list_uri('stream'))
         self.assertEqual('/api/v1/stream/schema/', self.resource_schema_uri('stream'))
+
+    def test_read_only(self):
+        stream_uri = '%s%s/' % (self.resource_list_uri('stream'), self.streams[0].id)
+
+        self.assertHttpMethodNotAllowed(self.api_client.post(self.resource_list_uri('stream'), format='json', data={}))
+        self.assertHttpMethodNotAllowed(self.api_client.put(stream_uri, format='json', data={}))
+        self.assertHttpMethodNotAllowed(self.api_client.patch(stream_uri, format='json', data={}))
+        self.assertHttpMethodNotAllowed(self.api_client.delete(stream_uri, format='json'))
 
     def test_get_list_all(self):
         data = self.get_list(
@@ -221,25 +243,99 @@ class BasicTest(test_runner.ResourceTestCase):
 
         self.assertEqual(schema, data)
 
-            u'end': None,
-            u'reverse': False,
-            u'end_exclusive': None,
-            u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
-            u'granularity': u'seconds',
-            u'time_downsamplers': None,
-            u'start_exclusive': None,
-            u'value_downsamplers': None,
-        })
+    def assertEqualDatapoints(self, stream_datapoints, offset, limit, datapoints, message):
+        if limit == 0:
+            stream_datapoints = []
+        else:
+            stream_datapoints = stream_datapoints[offset:offset + limit]
 
-        self.assertEqual(response['meta']['previous'], None)
-        self.assertEqual(response['meta']['offset'], 0)
-        self.assertEqual(response['meta']['limit'], 100)
-        self.assertTrue(response['meta']['total_count'] > 100)
+        for datapoint in datapoints:
+            datapoint['t'] = parsedate_to_datetime(datapoint['t'])
 
-        self.assertEqual(len(response['datapoints']), 100)
+        self.assertEqual(list(stream_datapoints), datapoints, message)
 
-        self.assertTrue('t' in response['datapoints'][0])
-        self.assertTrue('v' in response['datapoints'][0])
+    def test_get_stream(self):
+        stream = self.streams[0]
+        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+
+        middle_time = calendar.timegm((stream.earliest_datapoint + (stream.latest_datapoint - stream.earliest_datapoint) / 2).utctimetuple())
+        end_time = calendar.timegm(stream.latest_datapoint.utctimetuple())
+
+        for offset in (0, 11, 56, 700):
+            for limit in (0, 5, 40):
+                for reverse in (True, False):
+                    for end in (None, middle_time, end_time):
+                        for exclusive in (True, False):
+                            kwargs = {
+                                'offset': offset,
+                                'limit': limit,
+                            }
+                            params = {}
+                            if reverse:
+                                params.update({'reverse': True})
+                            if end and exclusive:
+                                params.update({'end_exclusive': end})
+                            elif end:
+                                params.update({'end': end})
+                            kwargs.update(params)
+
+                            data = self.get_detail('stream', stream.id, **kwargs)
+
+                            self.assertEqual(stream.id, data.pop('id'))
+                            # We manually construct URI to make sure it is like we assume it is.
+                            self.assertEqual(u'%s%s/' % (self.resource_list_uri('stream'), stream.id), data.pop('resource_uri'))
+                            self.assertEqual(stream.tags, data.pop('tags'))
+                            self.assertItemsEqual(self.value_downsamplers, data.pop('value_downsamplers'))
+                            self.assertItemsEqual(self.time_downsamplers, data.pop('time_downsamplers'))
+                            self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
+
+                            if end:
+                                end_string = serializer.format_datetime(datetime.datetime.utcfromtimestamp(end))
+
+                            self.assertEqual({
+                                u'end': None if not end or exclusive else end_string,
+                                u'reverse': reverse,
+                                u'end_exclusive': end_string if end and exclusive else None,
+                                u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
+                                u'granularity': u'seconds',
+                                u'time_downsamplers': None,
+                                u'start_exclusive': None,
+                                u'value_downsamplers': None,
+                            }, data.pop('query_params'))
+
+                            stream_datapoints = datastream.get_data(
+                                stream_id=stream.id,
+                                granularity=datastream.Granularity.Seconds,
+                                start=datetime.datetime.min,
+                                end=None if not end or exclusive else datetime.datetime.utcfromtimestamp(end),
+                                start_exclusive=None,
+                                end_exclusive=datetime.datetime.utcfromtimestamp(end) if end and exclusive else None,
+                                reverse=reverse,
+                                value_downsamplers=None,
+                                time_downsamplers=None,
+                            )
+                            # We store the length before we maybe slice it in assertEqualDatapoints.
+                            stream_datapoints_length = len(stream_datapoints)
+                            self.assertEqualDatapoints(stream_datapoints, offset, limit, data.pop('datapoints'), 'offset=%s, limit=%s, reverse=%s, end=%s, exclusive=%s' % (offset, limit, reverse, end, exclusive))
+
+                            if 0 < offset < limit:
+                                previous_limit = offset
+                            else:
+                                previous_limit = limit
+
+                            params = '&'.join(['%s=%s' % (k, urllib.quote(str(v))) for k, v in params.iteritems()])
+
+                            self.assertMetaEqual({
+                                u'total_count': stream_datapoints_length,
+                                # For datapoints (details), limit should always be the same as we specified.
+                                u'limit': limit,
+                                u'offset': offset,
+                                u'next': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', limit, offset + limit) if limit and stream_datapoints_length > offset + limit else None,
+                                u'previous': u'%s?%sformat=json&limit=%s&offset=%s' % (self.resource_detail_uri('stream', stream.id), '%s&' % params if params else '', previous_limit, offset - previous_limit) if limit and offset != 0 else None,
+                            }, data.pop('meta'))
+
+                            # We should check everything.
+                            self.assertEqual({}, data)
 
     def test_ujson(self):
         # We are using a ujson fork which allows data to have a special __json__ method which

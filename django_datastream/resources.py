@@ -1,7 +1,5 @@
 import datetime
 
-import pytz
-
 from django.conf import settings
 
 from tastypie import bundle as tastypie_bundle, exceptions, fields as tastypie_fields, resources
@@ -173,22 +171,22 @@ class StreamResource(BaseResource):
                 raise InvalidGranularity("Invalid granularity: '%s'" % granularity)
 
         if QUERY_START in request.GET:
-            start = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_START)), pytz.utc)
+            start = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_START)))
         else:
             start = None
 
         if QUERY_END in request.GET:
-            end = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_END)), pytz.utc)
+            end = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_END)))
         else:
             end = None
 
         if QUERY_START_EXCLUSIVE in request.GET:
-            start_exclusive = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_START_EXCLUSIVE)), pytz.utc)
+            start_exclusive = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_START_EXCLUSIVE)))
         else:
             start_exclusive = None
 
         if QUERY_END_EXCLUSIVE in request.GET:
-            end_exclusive = datetime.datetime.fromtimestamp(int(request.GET.get(QUERY_END_EXCLUSIVE)), pytz.utc)
+            end_exclusive = datetime.datetime.utcfromtimestamp(int(request.GET.get(QUERY_END_EXCLUSIVE)))
         else:
             end_exclusive = None
 
