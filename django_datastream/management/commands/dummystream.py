@@ -121,8 +121,10 @@ class Command(base.BaseCommand):
         streams = []
         for i in range(nstreams):
             if types is None or types[i][0] != 'enum':
+                value_type = 'numeric'
                 downsamplers = datastream.backend.value_downsamplers
             else:
+                value_type = 'nominal'
                 downsamplers = []
 
             if types is not None:
@@ -157,6 +159,7 @@ class Command(base.BaseCommand):
                 },
                 downsamplers,
                 datastream.Granularity.Seconds,
+                value_type=value_type,
             )
 
             streams.append((stream_id, typ))
