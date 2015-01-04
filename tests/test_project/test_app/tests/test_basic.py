@@ -147,9 +147,27 @@ class BasicTest(test_runner.ResourceTestCase):
         for offset in (0, 1, 2):
             for limit in (0, 1, 20):
                 for field_filter, filter_function in (
-                    ({'tags__stream_id': self.streams[0].id}, lambda stream: stream.id == self.streams[0].id),
-                    # It should be "stream_id", not "id".
+                    # We do not allow filtering by "stream_id". You should use detail API.
+                    # (This s something which is allowed by datastream when using find_streams.)
+                    ({'tags__stream_id': self.streams[0].id}, lambda stream: False),
+                    # This is even more incorrect, it should be "stream_id", not "id".
                     ({'tags__id': self.streams[0].id}, lambda stream: False),
+                    # Internal tags should not be exposed through the API.
+                    ({'tags__value_type': 'numeric'}, lambda stream: False),
+                    # Seconds, because this is class name in the database.
+                    ({'tags__highest_granularity': 'Seconds'}, lambda stream: False),
+                    ({'tags__title': 'Stream 1'}, lambda stream: stream.tags['title'] == 'Stream 1'),
+                    ({'tags__title__iexact': 'stream 1'}, lambda stream: stream.tags['title'] == 'Stream 1'),
+                    ({'tags__title__iexact': 'strEAm 1'}, lambda stream: stream.tags['title'] == 'Stream 1'),
+                    ({'tags__title__icontains': 'strEAm'}, lambda stream: True), # All streams have this in the title.
+                    ({'tags__stream_number': 1}, lambda stream: stream.tags['stream_number'] == 1),
+                    ({'tags__stream_number__gte': 1}, lambda stream: stream.tags['stream_number'] >= 1),
+                    ({'tags__stream_number__gt': 1}, lambda stream: stream.tags['stream_number'] > 1),
+                    ({'tags__visualization__value_downsamplers': 'mean'}, lambda stream: 'mean' in stream.tags['visualization']['value_downsamplers']),
+                    ({'tags__visualization__value_downsamplers__all': ['mean', 'min']}, lambda stream: 'mean' in stream.tags['visualization']['value_downsamplers'] and 'min' in stream.tags['visualization']['value_downsamplers']),
+                    ({'tags__visualization__value_downsamplers__all': ['mean', 'foobar']}, lambda stream: False),
+                    ({'tags__visualization__value_downsamplers__all': 'mean,min'}, lambda stream: 'mean' in stream.tags['visualization']['value_downsamplers'] and 'min' in stream.tags['visualization']['value_downsamplers']),
+                    ({'tags__visualization__value_downsamplers__all': 'mean,foobar'}, lambda stream: False),
                ):
                     kwargs = {
                         'offset': offset,

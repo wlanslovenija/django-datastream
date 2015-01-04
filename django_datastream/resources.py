@@ -56,7 +56,31 @@ class StreamsList(datastream_api.ResultsBase):
             raise TypeError
 
 
-class StreamResource(resources.Resource):
+class BaseResource(resources.Resource):
+    @staticmethod
+    def value_to_list(params, field):
+        if hasattr(params, 'getlist'):
+            value = []
+
+            for part in params.getlist(field):
+                value.extend(part.split(','))
+        else:
+            value = params.get(field, '').split(',')
+
+        return value
+
+    def basic_filter_value_to_python(self, value):
+        if value in ['true', 'True', True]:
+            return True
+        elif value in ['false', 'False', False]:
+            return False
+        elif value in ('none', 'None', 'null', None):
+            return None
+        else:
+            return value
+
+
+class StreamResource(BaseResource):
     class Meta:
         list_allowed_methods = ('get',)
         detail_allowed_methods = ('get',)
@@ -88,23 +112,27 @@ class StreamResource(resources.Resource):
 
     def get_object_list(self, request):
         query_tags = {}
-        for key, value in request.GET.iteritems():
-            if not key.startswith('%s__' % QUERY_TAGS):
+
+        filters = request.GET.copy()
+        for filter_expr, value in filters.iteritems():
+            filter_bits = filter_expr.split('__')
+            field_name = filter_bits.pop(0)
+
+            if field_name != 'tags':
+                # We allow filtering only over tags.
                 continue
 
-            key = key.split('__')[1:]
-            if not key:
-                continue
+            value = self.filter_value_to_python(value, filter_bits[-1], filters, filter_expr)
 
             parent_tag = query_tags
-            for tag in key[:-1]:
+            for tag in filter_bits[:-1]:
                 parent_tag = parent_tag.setdefault(tag, {})
-            parent_tag[key[-1]] = value
+            parent_tag[filter_bits[-1]] = value
 
         return StreamsList(datastream.find_streams(query_tags))
 
     def apply_sorting(self, obj_list, options=None):
-        # TODO: Allow sorting (use ListQuerySet from django-tastypie-mongoengine?)
+        # TODO: Allow sorting (use ListQuerySet from django-tastypie-mongoengine? or provide API for that in datastream)
         return obj_list
 
     def obj_get_list(self, bundle, **kwargs):
@@ -254,3 +282,31 @@ class StreamResource(resources.Resource):
 
     def rollback(self, bundles):
         raise NotImplementedError
+
+    def basic_filter_value_to_python(self, value):
+        value = super(StreamResource, self).basic_filter_value_to_python(value)
+
+        if isinstance(value, basestring):
+            try:
+                # If we can convert the string to the integer, we assume it is an integer.
+                return int(value)
+            except ValueError:
+                pass
+
+            try:
+                # If we can convert the string to the float, we assume it is a float.
+                return float(value)
+            except ValueError:
+                pass
+
+        return value
+
+    def filter_value_to_python(self, value, field_name, filters, filter_expr):
+        if field_name in ('in', 'nin', 'all'):
+            value = self.value_to_list(filters, filter_expr)
+            value = [self.basic_filter_value_to_python(v) for v in value]
+
+        else:
+            value = self.basic_filter_value_to_python(value)
+
+        return value
