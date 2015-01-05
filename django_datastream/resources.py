@@ -95,8 +95,8 @@ class StreamResource(BaseResource):
     time_downsamplers = tastypie_fields.ListField(attribute='time_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = tastypie_fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = tastypie_fields.DictField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
-    latest_datapoint = tastypie_fields.DateTimeField(attribute='latest_datapoint', null=True, blank=False, readonly=True, help_text=None)
     earliest_datapoint = tastypie_fields.DateTimeField(attribute='earliest_datapoint', null=True, blank=False, readonly=True, help_text=None)
+    latest_datapoint = tastypie_fields.DateTimeField(attribute='latest_datapoint', null=True, blank=False, readonly=True, help_text=None)
     value_type = tastypie_fields.CharField(attribute='value_type', null=False, blank=False, default='numeric', readonly=True, unique=True, help_text=None)
 
     # We show datapoints only in detail view. And we allow pagination over them.
