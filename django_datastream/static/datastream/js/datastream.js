@@ -685,6 +685,9 @@
     StreamList.prototype.setExtremes = function (event) {
         var self = this;
 
+        // We use == and not === to test for both null and undefined.
+        if (event.min == null || event.max == null) return;
+
         self._setExtremes(event.min, event.max, 'x-axis');
     };
 
@@ -694,6 +697,12 @@
         var charts = _.uniq(_.pluck(_.values(self.streams), 'chart'));
 
         _.each(charts, function (chart, i) {
+            var currentExtremes = chart.get(axis).getExtremes();
+
+            // If there is no change, just return.
+            // We use == and not === to compare for both null and undefined.
+            if (currentExtremes.userMin == min && currentExtremes.userMax == max) return;
+
             // We set "syncing" flag on the event so that charts know that they have to load data now
             chart.get(axis).setExtremes(min, max, true, false, {'syncing': true});
         });
