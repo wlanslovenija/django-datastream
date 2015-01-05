@@ -160,7 +160,7 @@
         });
     }(Highcharts));
 
-    // TODO: This curently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
+    // TODO: This currently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
     // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
     var MAX_POINTS_NUMBER = 300;
     var MAX_DETAIL_LIMIT = 10000;
