@@ -213,7 +213,7 @@ class Command(base.BaseCommand):
         span = span.split(' ')
         if len(span) == 1 and span[0]:
             span = span[0]
-            for val, key in (('days', 'd'), ('hours', 'h')):
+            for val, key in (('days', 'd'), ('hours', 'h'), ('minutes', 'm'), ('seconds', 's')):
                 if span[-1] == key:
                     try:
                         s = int(span[:-1])
