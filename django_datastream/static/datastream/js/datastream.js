@@ -586,12 +586,13 @@
 
         var interval = range.end - range.start;
 
-        _.each(GRANULARITIES, function (granularity, i) {
+        for (var i = 0; i < GRANULARITIES.length; i++) {
+            var granularity = GRANULARITIES[i];
             if (interval / granularity.duration > MAX_POINTS_NUMBER) {
-                return false;
+                break;
             }
             range.granularity = granularity;
-        });
+        }
 
         // We enlarge range for 10 % in each direction
         range.start -= interval * 0.1;
@@ -784,18 +785,20 @@
 
         var match = null;
 
-        _.each(self.streams, function (stream, id) {
-            // We cannot break, so just return immediately.
-            if (match) return;
+        for (var id in self.streams) {
+            if (!self.streams.hasOwnProperty(id)) continue;
+
+            var stream = self.streams[id];
 
             // withStream might be in the self.streams, ignore it (otherwise it
             // cloud match itself below and break things).
-            if (stream === withStream) return;
+            if (stream === withStream) continue;
 
             if (self.matchWith(stream, withStream) || self.matchWith(withStream, stream)) {
                 match = stream;
+                break;
             }
-        });
+        }
 
         return match;
     };
