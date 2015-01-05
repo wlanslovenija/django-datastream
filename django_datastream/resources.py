@@ -95,6 +95,9 @@ class StreamResource(BaseResource):
     time_downsamplers = tastypie_fields.ListField(attribute='time_downsamplers', null=False, blank=False, readonly=True, help_text=None)
     highest_granularity = tastypie_fields.CharField(attribute='highest_granularity', null=False, blank=False, readonly=True, help_text=None)
     tags = tastypie_fields.DictField(attribute='tags', null=True, blank=False, readonly=False, help_text=None)
+    latest_datapoint = tastypie_fields.DateTimeField(attribute='latest_datapoint', null=True, blank=False, readonly=True, help_text=None)
+    earliest_datapoint = tastypie_fields.DateTimeField(attribute='earliest_datapoint', null=True, blank=False, readonly=True, help_text=None)
+    value_type = tastypie_fields.CharField(attribute='value_type', null=False, blank=False, default='numeric', readonly=True, unique=True, help_text=None)
 
     # We show datapoints only in detail view. And we allow pagination over them.
     datapoints = fields.DatapointsField(attribute='datapoints', null=True, blank=False, readonly=True, help_text=None, use_in='detail')
@@ -301,3 +304,21 @@ class StreamResource(BaseResource):
             value = self.basic_filter_value_to_python(value)
 
         return value
+
+    def build_schema(self):
+        data = super(StreamResource, self).build_schema()
+
+        data['fields']['value_type'].update({
+            'choices': datastream.VALUE_TYPES,
+        })
+        data['fields']['value_downsamplers'].update({
+            'choices': datastream.VALUE_DOWNSAMPLERS.keys(),
+        })
+        data['fields']['highest_granularity'].update({
+            'choices': datastream.Granularity.values,
+        })
+        data['fields']['time_downsamplers'].update({
+            'choices': datastream.TIME_DOWNSAMPLERS.keys(),
+        })
+
+        return data

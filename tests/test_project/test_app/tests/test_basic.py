@@ -133,6 +133,8 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertHttpMethodNotAllowed(self.api_client.delete(stream_uri, format='json'))
 
     def test_get_list_all(self):
+        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+
         data = self.get_list(
             'stream',
             offset=0,
@@ -163,6 +165,9 @@ class BasicTest(test_runner.ResourceTestCase):
             self.assertEqual(self.streams[i].value_downsamplers, stream.pop('value_downsamplers'))
             self.assertEqual(self.streams[i].time_downsamplers, stream.pop('time_downsamplers'))
             self.assertEqual(self.streams[i].highest_granularity, stream.pop('highest_granularity'))
+            self.assertEqual(serializer.format_datetime(self.streams[i].earliest_datapoint), stream.pop('earliest_datapoint'))
+            self.assertEqual(serializer.format_datetime(self.streams[i].latest_datapoint), stream.pop('latest_datapoint'))
+            self.assertEqual(self.streams[i].value_type, stream.pop('value_type'))
 
             # We manually construct URI to make sure it is like we assume it is.
             self.assertEqual('%s%s/' % (self.resource_list_uri('stream'), self.streams[i].id), stream.pop('resource_uri'))
@@ -347,6 +352,9 @@ class BasicTest(test_runner.ResourceTestCase):
                                 self.assertItemsEqual(stream.value_downsamplers, data.pop('value_downsamplers'))
                                 self.assertItemsEqual(stream.time_downsamplers, data.pop('time_downsamplers'))
                                 self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
+                                self.assertEqual(serializer.format_datetime(stream.earliest_datapoint), data.pop('earliest_datapoint'))
+                                self.assertEqual(serializer.format_datetime(stream.latest_datapoint), data.pop('latest_datapoint'))
+                                self.assertEqual(stream.value_type, data.pop('value_type'))
 
                                 if end:
                                     end_string = serializer.format_datetime(datetime.datetime.utcfromtimestamp(end))
@@ -480,6 +488,9 @@ class BasicTest(test_runner.ResourceTestCase):
                                         self.assertItemsEqual(stream.value_downsamplers, data.pop('value_downsamplers'))
                                         self.assertItemsEqual(stream.time_downsamplers, data.pop('time_downsamplers'))
                                         self.assertEqual(stream.highest_granularity, data.pop('highest_granularity'))
+                                        self.assertEqual(serializer.format_datetime(stream.earliest_datapoint), data.pop('earliest_datapoint'))
+                                        self.assertEqual(serializer.format_datetime(stream.latest_datapoint), data.pop('latest_datapoint'))
+                                        self.assertEqual(stream.value_type, data.pop('value_type'))
 
                                         if start:
                                             start_string = serializer.format_datetime(datetime.datetime.utcfromtimestamp(start))
