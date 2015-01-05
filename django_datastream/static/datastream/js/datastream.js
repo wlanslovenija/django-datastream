@@ -163,7 +163,8 @@
     // TODO: This currently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
     // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
     var MAX_POINTS_NUMBER = 300;
-    var MAX_DETAIL_LIMIT = 10000;
+    // TODO: How much exactly do we want?
+    var MAX_POINTS_LOAD_LIMIT = 1000;
 
     var GRANULARITIES = [
         {'name': 'days', 'duration': 24 * 60 * 60},
@@ -438,13 +439,24 @@
     Stream.prototype.loadInitialData = function () {
         var self = this;
 
-        self.showLoading();
+        var min = null;
+        var max = null;
 
+        if (self.earliest_datapoint) {
+            min = moment.utc(self.earliest_datapoint).valueOf();
+        }
+        if (self.latest_datapoint) {
+            max = moment.utc(self.latest_datapoint).valueOf();
+        }
+
+        var range = self.computeRange(min, max);
+
+        self.showLoading();
         getJSON(self.resource_uri, {
-            // Use lowest granularity and no bounds to get initial data
-            'granularity': GRANULARITIES[0].name,
-            // We want to get all we can, we are loading days so it should not be so bad
-            'limit': MAX_DETAIL_LIMIT,
+            // Use no time bounds to get initial data. We just want the
+            // granularity which has suitable amount of datapoints.
+            'granularity': range.granularity.name,
+            'limit': MAX_POINTS_LOAD_LIMIT,
             'value_downsamplers': self.valueDownsamplers(true),
             'time_downsamplers': self.timeDownsamplers(true)
         }, function (data, textStatus, jqXHR) {
@@ -618,7 +630,7 @@
         self.showLoading();
         getJSON(self.resource_uri, {
             'granularity': range.granularity.name,
-            'limit': 1000, // TODO: How much exactly do we want?
+            'limit': MAX_POINTS_LOAD_LIMIT,
             'start': range.start,
             'end': range.end,
             'value_downsamplers': self.valueDownsamplers(),
@@ -713,24 +725,32 @@
 
         assert(_.has(self.streams, data.id));
 
-        if (!data.datapoints || data.datapoints.length === 0) {
-            return;
+        var start = data.earliest_datapoint;
+        var end = data.latest_datapoint;
+
+        if (data.datapoints && data.datapoints.length > 0) {
+            var firstDatapoint = data.datapoints[0];
+            var lastDatapoint = data.datapoints[data.datapoints.length - 1];
+
+            // We go through downsampled timestamps in such order to maximize the range
+            var datapointsStart = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+            var datapointsEnd = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
+
+            if (!start || (start && datapointsStart && moment.utc(datapointsStart).valueOf() < moment.utc(start).valueOf())) {
+                start = datapointsStart;
+            }
+            if (!end || (end && datapointsEnd && moment.utc(datapointsEnd).valueOf() > moment.utc(end).valueOf())) {
+                end = datapointsEnd;
+            }
         }
-
-        var firstDatapoint = data.datapoints[0];
-        var lastDatapoint = data.datapoints[data.datapoints.length - 1];
-
-        // We go through downsampled timestamps in such order to maximize the range
-        var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
-        var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
 
         var changed = false;
 
-        if (!_.isUndefined(start) && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
+        if (start && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
             changed = true;
             self.minRange = moment.utc(start).valueOf();
         }
-        if (!_.isUndefined(end) && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
+        if (end && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
             changed = true;
             self.maxRange = moment.utc(end).valueOf();
         }
@@ -756,13 +776,16 @@
         return true;
     };
 
+    // Streams can be declared to be with some other stream and should be displayed together.
+    // This method finds a stream where or withStream or another stream has declared another
+    // to be with.
     StreamList.prototype.isWith = function (withStream) {
         var self = this;
 
         var match = null;
 
         _.each(self.streams, function (stream, id) {
-            // We cannot break, so just returimmediately.
+            // We cannot break, so just return immediately.
             if (match) return;
 
             // withStream might be in the self.streams, ignore it (otherwise it
@@ -794,6 +817,7 @@
 
             var nextUri = options.streamListUri;
             var nextParams = options.streamListParams;
+            // Handle pagination.
             async.whilst(function () {
                 return !!nextUri;
             }, function (callback) {
@@ -803,6 +827,7 @@
                     });
 
                     nextUri = data.meta.next;
+                    // All params are already in "next".
                     nextParams = {};
                     callback();
                 }).fail(function () {
