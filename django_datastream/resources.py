@@ -80,6 +80,7 @@ class BaseResource(resources.Resource):
 
 class StreamResource(BaseResource):
     class Meta:
+        resource_name = 'stream'
         list_allowed_methods = ('get',)
         detail_allowed_methods = ('get',)
         serializer = serializers.DatastreamSerializer()
