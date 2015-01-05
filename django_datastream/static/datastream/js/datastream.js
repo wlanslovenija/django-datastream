@@ -1,768 +1,802 @@
-(function($, undefined) {
-    var debug;
-    var plots = {};
-    var cached_data = {};
-    var current_plot_id = 0;
-    var datastream_location = '';
-    var restful_api_location = 'api/v1/stream/';
-    var query_in_progress = false;
-    var plot_redrawing = false;
+(function ($) {
 
-    function toDebugTime (miliseconds) {
-        function twoDigits(digit) {
-            return ('0' + digit).slice(-2);
+    _.findIndex = function (obj, iterator, context) {
+        var result;
+        _.any(obj, function(value, index, list) {
+            if (iterator.call(context, value, index, list)) {
+                result = index;
+                return true;
+            }
+        });
+        return result;
+    };
+
+    function getJSON(url, data, success) {
+        return $.ajax({
+            'dataType': 'json',
+            'url': url,
+            'data': data,
+            'success': success,
+            // We don't use global jQuery Ajax setting to not conflict with some other code,
+            // but we make sure we use traditional query params serialization for all our requests.
+            'traditional': true
+        });
+    }
+
+    /**
+     * Plugin for highlighting. It set a lower opacity for other series than the one that is hovered over.
+     * Additionally, if not hovering over, a lower opacity is set based on series selected status.
+     */
+    (function (Highcharts) {
+        function highlightOn(allSeries, currentSeries) {
+            return function (e) {
+                _.each(allSeries, function (series, i) {
+                    if (i === 0) {
+                        // We skip (empty) navigator series
+                        assert.equal(series.data.length, 0);
+                        return;
+                    }
+
+                    var current = series === currentSeries || series.linkedParent === currentSeries || series.options.streamId === currentSeries.options.streamId;
+                    _.each(['group', 'markerGroup'], function (group, j) {
+                        series[group].attr('opacity', current ? 1.0 : 0.25);
+                    });
+                    // We reuse visibility styles here
+                    series.chart.legend.colorizeItem(series, current);
+                });
+            };
         }
 
-        var d = new Date();
-        d.setTime(miliseconds);
-        return
-            twoDigits(d.getHours()) + ':' +
-            twoDigits(d.getMinutes()) + ':' +
-            twoDigits(d.getSeconds()) + ' ' +
-            twoDigits(d.getDate()) + '.' +
-            twoDigits(d.getMonth() + 1) + '.' +
-            d.getFullYear();
-    }
+        function highlightOff(allSeries, currentSeries) {
+            return function (e) {
+                _.each(allSeries, function (series, i) {
+                    if (i === 0) {
+                        // We skip (empty) navigator series
+                        assert.equal(series.data.length, 0);
+                        return;
+                    }
 
-    $(document).ready(function () {
-        debug = $('#debug');
+                    assert(series.options.streamId);
 
-        if (!debug.length) {
-            debug = false;
+                    var selected = series.selected || _.some(_.filter(allSeries, function (s) {return s.options.streamId === series.options.streamId}), function (s) {return s.selected});
+
+                    _.each(['group', 'markerGroup'], function (group, j) {
+                        series[group].attr('opacity', selected ? 1.0 : 0.25);
+                    });
+                    // We reuse visibility styles here
+                    series.chart.legend.colorizeItem(series, selected);
+                });
+            };
         }
-    });
 
-    // #8138, IE may throw an exception when accessing
-    // a field from window.location if document.domain has been set
-    try {
-        datastream_location = location.href + restful_api_location;
-    }
-    catch (e) {
-        // Use the href attribute of an A element
-        // since IE will modify it given document.location
-        datastream_location = document.createElement('a');
-        datastream_location.href = '';
-        datastream_location = datastream_location.href + restful_api_location;
-    }
+        // Hovering over the legend
+        Highcharts.wrap(Highcharts.Legend.prototype, 'renderItem', function (proceed, currentSeries) {
+            proceed.call(this, currentSeries);
 
-    function Datastream(placeholder, options) {
-        var self = this;
-        var add_stream = null;
+            var allSeries = this.chart.series;
 
-        if (options && options.streams) {
-            options = $.extend(options, {
-                'datastream': {'streams': options.streams}
+            $(currentSeries.legendGroup.element).off('.highlight').on(
+                'mouseenter.highlight', highlightOn(allSeries, currentSeries)
+            ).on(
+                'mouseleave.highlight', highlightOff(allSeries, currentSeries)
+            );
+        });
+    }(Highcharts));
+
+    /*
+     * Extend Highcharts so that JSON and XML can be exported from the current view.
+     */
+    (function (Highcharts) {
+        var defaultOptions = Highcharts.getOptions();
+
+        _.extend(defaultOptions.lang, {
+            'exportJSON': "Export JSON",
+            'exportXML': "Export XML"
+        });
+
+        defaultOptions.exporting.buttons.contextButton.menuItems.push({
+            'separator': true
+        },
+        {
+            'textKey': 'exportJSON',
+            'onclick': function (e) {
+                // We make a menu entry into a link, so we don't do anything here
+            }
+        },
+        {
+            'textKey': 'exportXML',
+            'onclick': function (e) {
+                // We make a menu entry into a link, so we don't do anything here
+            }
+        });
+
+        _.extend(defaultOptions.navigation.menuItemStyle, {
+            'textDecoration': 'none'
+        });
+
+        Highcharts.wrap(Highcharts.Chart.prototype, 'contextMenu', function (proceed, className, items, x, y, width, height, button) {
+            proceed.call(this, className, items, x, y, width, height, button);
+
+            var exportJSON = _.findIndex(this.options.exporting.buttons.contextButton.menuItems, function (menuItem) {
+                return menuItem.textKey === 'exportJSON';
             });
-            delete options.streams;
+            var exportXML = _.findIndex(this.options.exporting.buttons.contextButton.menuItems, function (menuItem) {
+                return menuItem.textKey === 'exportXML';
+            });
+
+            var menuItemStyle = this.options.navigation.menuItemStyle;
+            var menuItemHoverStyle = this.options.navigation.menuItemHoverStyle;
+
+            // TODO: We remove padding here so that link does not have additional padding, but this prevents overriding with some other padding, we should probably use some other style object, with menuItemStyle as default
+            menuItemStyle = _.omit(menuItemStyle, 'padding');
+
+            var $exportJSON = $(this.exportDivElements[exportJSON]);
+            var $exportXML = $(this.exportDivElements[exportXML]);
+
+            function addFormat(url, format) {
+                if (url.indexOf('?') !== -1) {
+                    return url + '&format=' + format;
+                }
+                else {
+                    return url + '?format=' + format;
+                }
+            }
+
+            var exportJSONURL = addFormat(this.exportDataURL, 'json');
+            var exportXMLURL = addFormat(this.exportDataURL, 'xml');
+
+            function addLink($div, url) {
+                if (!$div.find('a').attr('href', url).length) {
+                    $div.wrapInner($('<a/>').attr('href', url).css(menuItemStyle).hover(function (e) {
+                        $(this).css(menuItemHoverStyle);
+                    }, function (e) {
+                        $(this).css(menuItemStyle);
+                    }));
+                }
+            }
+
+            addLink($exportJSON, exportJSONURL);
+            addLink($exportXML, exportXMLURL);
+        });
+    }(Highcharts));
+
+    // TODO: This curently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint
+    // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
+    var MAX_POINTS_NUMBER = 300;
+    var MAX_DETAIL_LIMIT = 10000;
+
+    var GRANULARITIES = [
+        {'name': 'days', 'duration': 24 * 60 * 60},
+        {'name': '6hours', 'duration': 6 * 60 * 60},
+        {'name': 'hours', 'duration': 60 * 60},
+        {'name': '10minutes', 'duration': 10 * 60},
+        {'name': 'minutes', 'duration': 60},
+        {'name': '10seconds', 'duration': 10},
+        {'name': 'seconds', 'duration': 1}
+    ];
+
+    function firstDefined(obj) {
+        for (var i = 1; i < arguments.length; i++) {
+            if (!_.isUndefined(obj[arguments[i]])) {
+                return obj[arguments[i]];
+            }
+        }
+    }
+
+    function setsEqual(a, b) {
+        return (a === b) || (a && b && a.length === b.length && _.difference(a, b).length === 0);
+    }
+
+    function Stream(stream, streamList) {
+        var self = this;
+
+        _.extend(self, stream);
+
+        self.streamList = streamList;
+
+        if (_.without(self.tags.visualization.time_downsamplers, 'mean').length) {
+            // TODO: Currently we support only mean time downsampler
+            console.error("Unsupported time downsamplers", self.tags.visualization.time_downsamplers);
+            throw new Error("Unsupported time downsamplers");
         }
 
-        if (options && options.add_stream) {
-            add_stream = options.add_stream;
-            delete options.add_stream;
+        if (_.without(self.tags.visualization.value_downsamplers, 'min', 'mean', 'max').length) {
+            // TODO: Currently we support only min, mean, and max value downsampler
+            console.error("Unsupported value downsamplers", self.tags.visualization.value_downsamplers);
+            throw new Error("Unsupported value downsamplers");
         }
 
-        self.options = $.extend({}, $.datastream.defaults, options);
-        self.placeholder = placeholder;
+        self.lastRangeStart = null;
+        self.lastRangeEnd = null;
 
-        if (placeholder.children('canvas') && add_stream) {
-            // Of selected existig canvas, add stream
-            var plot_id = placeholder.prop('id');
-            self.options.datastream.streams.push(add_stream);
-            plots[plot_id].addStream(add_stream);
+        self.mainTypes = [];
+        self.rangeTypes = [];
 
+        if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'max'])) {
+            self.mainTypes = [{'type': 'spline', 'keys': ['u']}, {'type': 'spline', 'keys': ['l']}];
+        }
+        else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean', 'max'])) {
+            self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+            self.rangeTypes = [{'type': 'arearange', 'keys': ['l', 'u']}];
+        }
+        else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['mean', 'max'])) {
+            self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+            self.rangeTypes = [{'type': 'arearange', 'keys': ['m', 'u']}];
+        }
+        else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean'])) {
+            self.mainTypes = [{'type': 'spline', 'keys': ['m']}];
+            self.rangeTypes = [{'type': 'arearange', 'keys': ['l', 'm']}];
         }
         else {
-            // Else add new plot
-            var plot_id = $.datastream.nextId();
-            placeholder.append($('<div>').attr({
-                'id': plot_id
-            }).css({
-                'width': self.options.width + 'px',
-                'height': self.options.height + 'px'
-            }));
-
-            plots[plot_id] = $.plot('#' + plot_id, [[]], self.options);
+            // TODO: Currently we have only limited support for various combinations
+            console.error("Unsupported combination of type and value downsamplers", self.tags.visualization.type, self.tags.visualization.value_downsamplers);
+            throw new Error("Unsupported combination of type and value downsamplers");
         }
+
+        assert(!_.has(self.streamList.streams, stream.id));
+
+        self.streamList.streams[stream.id] = self;
+
+        self.getChart(function () {
+            self.loadInitialData();
+        });
     }
 
-    $.datastream = {};
+    Stream.prototype.getChart = function (callback) {
+        var self = this;
 
-    $.fn.datastream = function (options) {
-        return this.each(function () {
-            new Datastream($(this), options);
+        var existing = self.streamList.isWith(self);
+        if (existing) {
+            self.chart = existing.chart;
+            if (callback) callback();
+        }
+        else {
+            self.initializeChart(callback);
+        }
+    };
+
+    Stream.prototype.initializeChart = function (callback) {
+        var self = this;
+
+        // This chart can be reused between many streams so using "self"
+        // in callbacks will make things work only for the first stream
+        $('<div/>').addClass('chart').appendTo(self.streamList.element).highcharts('StockChart', {
+            'chart': {
+                'zoomType': 'x',
+                'borderRadius': 10
+            },
+            'credits': {
+                'enabled': false
+            },
+            'navigator': {
+                'enabled': true,
+                'adaptToUpdatedData': false,
+                'series': {
+                    'id': 'navigator',
+                    // We will add our own series on top of this one and leave this one empty
+                    'data': []
+                }
+            },
+            'scrollbar': {
+                'enabled': true,
+                'liveRedraw': false
+            },
+            'legend': {
+                'enabled': true,
+                'verticalAlign': 'top',
+                'floating': true,
+                'padding': 5
+            },
+            'rangeSelector': {
+                'buttonTheme': {
+                    'width': 50
+                },
+                'buttons': [
+                    {
+                        'type': 'day',
+                        'count': 1,
+                        'text': "day"
+                    },
+                    {
+                        'type': 'week',
+                        'count': 1,
+                        'text': "week"
+                    },
+                    {
+                        'type': 'month',
+                        'count': 1,
+                        'text': "month"
+                    },
+                    {
+                        'type': 'year',
+                        'count': 1,
+                        'text': "year"
+                    },
+                    {
+                        'type': 'all',
+                        'text': "all"
+                    }
+                ],
+                'selected': 4 // All
+            },
+            'xAxis': {
+                'id': 'x-axis',
+                'events': {
+                    'afterSetExtremes': function (event) {
+                        if (event.syncing) {
+                            // It is our event and we are syncing extremes between charts, load data for all streams in this chart
+                            var streams = _.uniq(_.filter(_.map(self.chart.series, function (series, i) {
+                                return series.options.streamId;
+                            }), function (series) {return !!series;}));
+                            self.streamList.loadData(event, streams);
+                        }
+                        else {
+                            // User changed extremes, first sync all charts
+                            self.streamList.setExtremes(event);
+                        }
+                    }
+                },
+                'ordinal': false,
+                'minRange': MAX_POINTS_NUMBER * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
+            },
+            'yAxis': [],
+            'plotOptions': {
+                'series': {
+                    'marker': {
+                        'enabled': true,
+                        'radius': 3
+                    },
+                    'dataGrouping': {
+                        'enabled': false
+                    }
+                }
+            },
+            'series': []
+        }, function (chart) {
+            chart.loadingShown = 0;
+            self.chart = chart;
+            if (callback) callback();
         });
     };
 
-    $.datastream.streamList = function (callback) {
-        $.getJSON($.datastream.defaults.url, function (data, textStatus, jqXHR) {
-            callback(data.objects);
-        });
+    Stream.prototype.showLoading = function () {
+        var self = this;
+
+        assert(self.chart.loadingShown >= 0);
+
+        self.chart.loadingShown++;
+        if (self.chart.loadingShown === 1) {
+            self.chart.showLoading("Loading data from server...");
+        }
     };
 
-    $.datastream.streamName = function (stream) {
-        var name_tag = $.grep(stream.tags, function (val, i) {
-            return val.name;
-        });
-        return (name_tag.length) ? name_tag[0].name : undefined;
+    Stream.prototype.hideLoading = function () {
+        var self = this;
+
+        assert(self.chart.loadingShown > 0);
+
+        self.chart.loadingShown--;
+        if (self.chart.loadingShown === 0) {
+            self.chart.hideLoading();
+        }
     };
 
-    $.datastream.nextId = function () {
-        current_plot_id += 1;
-        return 'plot_' + current_plot_id;
-    };
+    // TODO: We should probably optimize this and not use functions to iterate
+    Stream.prototype.convertDatapoint = function (datapoint) {
+        var self = this;
 
-    $.datastream.currentId = function () {
-        return 'plot_' + current_plot_id;
-    };
+        // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now
+        var t = moment.utc(_.isObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
 
-    $.datastream.defaults = {
-        'url': datastream_location,
-        'width': 400,
-        'height': 200,
-        'granularity': null,
-        'from': null,
-        'to': null,
-        'datastream': {
-            'streams': []
-        },
-        'selection': {
-            'mode': 'x',
-            'click': 3
-        },
-        'crosshair': {
-            'mode': 'x'
-        },
-        'grid': {
-            'hoverable': true,
-            'autoHighlight': false
-        },
-        'zoom': {
-            'interactive': false,
-            'trigger': 'dblclick',
-            'amount': 1.5
-        },
-        'pan': {
-            'interactive': true,
-            'cursor': 'move',
-            'frameRate': 20
-        },
-        'xaxis': {
-            'zoomRange': null,
-            'panRange': null
-        },
-        'yaxis': {
-            'zoomRange': false,
-            'panRange': false
-        },
-        'series': {
-            'lines': {
-                'lineWidth': 1
+        if (_.isObject(datapoint.v)) {
+            return {
+                'main': _.map(self.mainTypes, function (mainType, i) {
+                    return [t].concat(_.map(mainType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
+                }),
+                'range': _.map(self.rangeTypes, function (rangeType, i) {
+                    return [t].concat(_.map(rangeType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
+                })
+            }
+        }
+        else {
+            return {
+                'main': [[t].concat(_.map(self.mainTypes[0].keys, function (key, i) {return parseFloat(datapoint.v);}))],
+                'range': []
             }
         }
     };
 
-    var flot_defaults = {
-        'url': datastream_location,
-        'datastream': null,
-        'from': null,
-        'to': null
+    // TODO: We should probably optimize this and not use functions to iterate
+    Stream.prototype.convertDatapoints = function (datapoints) {
+        var self = this;
+
+        var main = _.map(self.mainTypes, function (mainType, i) {return [];});
+        var range = _.map(self.rangeTypes, function (rangeType, i) {return [];});
+
+        _.each(datapoints, function (datapoint, i) {
+            datapoint = self.convertDatapoint(datapoint);
+            _.each(datapoint.main, function (m, i) {
+                main[i].push(m);
+            });
+            _.each(datapoint.range, function (r, i) {
+                range[i].push(r);
+            });
+        });
+
+        return {
+            'main': main,
+            'range': range
+        };
     };
 
-    function getStreamData(stream_id, granularity, from, to, callback) {
-        if (query_in_progress) {
-            setTimeout(function () {
-                getStreamData(stream_id, granularity, from, to, callback);
-            }, 40);
+    Stream.prototype.setExportDataURL = function (url) {
+        var self = this;
+
+        self.chart.exportDataURL = url;
+    };
+
+    Stream.prototype.loadInitialData = function () {
+        var self = this;
+
+        self.showLoading();
+
+        getJSON(self.resource_uri, {
+            // Use lowest granularity and no bounds to get initial data
+            'granularity': GRANULARITIES[0].name,
+            // We want to get all we can, we are loading days so it should not be so bad
+            'limit': MAX_DETAIL_LIMIT,
+            'value_downsamplers': self.valueDownsamplers(true),
+            'time_downsamplers': self.timeDownsamplers(true)
+        }, function (data, textStatus, jqXHR) {
+            assert.equal(data.id, self.id);
+
+            var settings = this;
+
+            var datapoints = self.convertDatapoints(data.datapoints);
+
+            self.chart.addAxis({
+                'id': 'y-axis-' + self.id,
+                'title': {
+                    'text': [self.tags.unit_description || "", self.tags.unit ? "[" + self.tags.unit + "]" : ""].join(" ")
+                },
+                'showEmpty': false,
+                'min': self.tags.visualization.minimum,
+                'max': self.tags.visualization.maximum
+            });
+            var yAxis = self.chart.get('y-axis-' + self.id);
+            // TODO: We should probably deduplicate code here
+            var series = null;
+            _.each(self.rangeTypes, function (rangeType, i) {
+                var s = self.chart.addSeries({
+                    'id': 'range-' + i + '-' + self.id,
+                    'streamId': self.id, // Our own option
+                    'name': self.tags.title,
+                    'linkedTo': series ? series.options.id : undefined, // Has to be undefined and cannot be null
+                    'yAxis': yAxis.options.id,
+                    'type': rangeType.type,
+                    'color': series ? series.color : null, // To automatically choose a color
+                    'lineWidth': 0,
+                    'fillOpacity': 0.3,
+                    'tooltip': {
+                        // TODO: Should be based on rangeType
+                        'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
+                        'valueDecimals': 3
+                    },
+                    'selected': series ? false : true, // By default all streams in the legend are selected/highlighted
+                    'events': {
+                        'legendItemClick': series ? null : function (e) {
+                            e.preventDefault();
+
+                            this.select();
+
+                            // We force mouse leave event to immediately set highlights
+                            $(this.legendGroup.element).trigger('mouseleave.highlight');
+                        }
+                    },
+                    'data': datapoints.range[i]
+                });
+                series = series || s;
+                // Match yAxis title color with series color
+                yAxis.axisTitle.css({'color': series.color});
+            });
+            _.each(self.mainTypes, function (mainType, i) {
+                var s = self.chart.addSeries({
+                    'id': 'main-' + i + '-' + self.id,
+                    'streamId': self.id, // Our own option
+                    'name': self.tags.title,
+                    'linkedTo': series ? series.options.id : undefined, // Has to be undefined and cannot be null
+                    'yAxis': yAxis.options.id,
+                    'type': mainType.type,
+                    'color': series ? series.color : null, // To automatically choose a color
+                    'tooltip': {
+                        // TODO: Should be based on mainType
+                        'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
+                        'valueDecimals': 3
+                    },
+                    'selected': series ? false : true, // By default all streams in the legend are selected/highlighted
+                    'events': {
+                        'legendItemClick': series ? null : function (e) {
+                            e.preventDefault();
+
+                            this.select();
+
+                            // We force mouse leave event to immediately set highlights
+                            $(this.legendGroup.element).trigger('mouseleave.highlight');
+                        }
+                    },
+                    'data': datapoints.main[i]
+                });
+                series = series || s;
+                // Match yAxis title color with series color
+                yAxis.axisTitle.css({'color': series.color});
+            });
+            var navigator = self.chart.get('navigator');
+            self.chart.addAxis(_.extend({}, navigator.yAxis.options, {
+                'id': 'navigator-y-axis-' + self.id
+            }));
+            self.chart.addSeries(_.extend({}, navigator.options, {
+                'id': 'navigator-' + self.id,
+                'streamId': self.id, // Our own option
+                'yAxis': 'navigator-y-axis-' + self.id,
+                'color': series.color,
+                'data': datapoints.main[0] || datapoints.range[0]
+            }));
+
+            // Without the following range selector is not displayed until first zooming.
+            // Additionally, on streams which reuse existing graphs, we have to trigger
+            // setExtremes event and loadData. So we call this every time a new stream
+            // is added to a chart.
+            // TODO: Why calling setExtremes on xAxis[0] is not idempotent operation but grows range just a bit?
+            self.chart.xAxis[0].setExtremes();
+
+            self.streamList.updateKnownMaxRange(data);
+
+            self.setExportDataURL(settings.url);
+        }).always(function () {
+            self.hideLoading();
+        });
+    };
+
+    Stream.prototype.computeRange = function (min, max) {
+        var self = this;
+
+        var range = {
+            'granularity': GRANULARITIES[0]
+        };
+
+        if (!_.isNumber(min) || !_.isNumber(min)) {
+            return range;
+        }
+
+        // In JavaScript timestamps are in milliseconds, but server sides uses them in seconds
+        range.start = min / 1000;
+        range.end = max / 1000;
+
+        var interval = range.end - range.start;
+
+        _.each(GRANULARITIES, function (granularity, i) {
+            if (interval / granularity.duration > MAX_POINTS_NUMBER) {
+                return false;
+            }
+            range.granularity = granularity;
+        });
+
+        // We enlarge range for 10 % in each direction
+        range.start -= interval * 0.1;
+        range.end += interval * 0.1;
+
+        range.start = parseInt(Math.floor(range.start));
+        range.end = parseInt(Math.ceil(range.end));
+
+        return range;
+    };
+
+    Stream.prototype.valueDownsamplers = function (initial) {
+        var self = this;
+
+        return _.union(self.tags.visualization.value_downsamplers, initial ? ['mean'] : [])
+    };
+
+    Stream.prototype.timeDownsamplers = function (initial) {
+        var self = this;
+
+        // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now
+        //return _.union(self.tags.visualization.time_downsamplers, initial ? ['first', 'last'] : [])
+        return _.union(['mean'], initial ? ['first', 'last'] : [])
+    };
+
+    Stream.prototype.loadData = function (event) {
+        var self = this;
+
+        var range = self.computeRange(event.min, event.max);
+
+        if (range.start === self.lastRangeStart && range.end === self.lastRangeEnd) {
+            // Nothing really changed
             return;
         }
 
-        if (!cached_data[stream_id]) {
-            cached_data[stream_id] = {};
-        }
+        self.showLoading();
+        getJSON(self.resource_uri, {
+            'granularity': range.granularity.name,
+            'limit': 1000, // TODO: How much exactly do we want?
+            'start': range.start,
+            'end': range.end,
+            'value_downsamplers': self.valueDownsamplers(),
+            'time_downsamplers': self.timeDownsamplers()
+        }, function (data, textStatus, jqXHR) {
+            assert.equal(data.id, self.id);
 
-        var intervals = [];
-        var collection = cached_data[stream_id][granularity] || null;
+            var settings = this;
 
-        if (from >= to) {
-            throw new Error("Argument Error: argument from must be less than argument to.");
-        }
+            self.lastRangeStart = range.start;
+            self.lastRangeEnd = range.end;
 
-        intervals.push([from, to]);
-
-        // Check intersections of requested data with local data
-        if (collection !== null) {
-            $.each(collection, function (i, c) {
-                var add = [];
-
-                intervals = $.grep(intervals, function (interval, j) {
-                    var f = interval[0];
-                    var t = interval[1];
-
-                    if (f <= c.points_to && t >= c.points_from) {
-                        // Requested data intersects with given interval
-
-                        if (f < c.points_from && t > c.points_to) {
-                            // Requested data interval larger than given
-                            add.push([f, c.points_from]);
-                            add.push([c.points_to, t]);
-                        }
-                        else if (f < c.points_from) {
-                            // Requested data interval is to the left of given
-                            add.push([f, c.points_from]);
-                        }
-                        else if (t > c.points_to) {
-                            // Requested data interval is to the right of given
-                            add.push([c.points_to, t]);
-                        }
-                        return false;
-                    }
-                    return true;
-                });
-
-                intervals = intervals.concat(add);
-
-                // If requested data is in local data
-                if (!intervals.length) {
-                    return false;
-                }
+            var datapoints = self.convertDatapoints(data.datapoints);
+            _.each(self.mainTypes, function (mainType, i) {
+                self.chart.get('main-' + i + '-' + self.id).setData(datapoints.main[i]);
             });
-        }
-
-        function selectData() {
-            // Return some data (even if not all is received yet)
-            var data = {};
-            var points = [];
-            var collection = cached_data[stream_id][granularity];
-
-            function bisectPoints(val, arr) {
-                var i = 0;
-                var j = arr.length;
-
-                while (i < j) {
-                    var h = Math.floor((i + j) / 2);
-                    if (val > arr[h][0]) {
-                        i = h + 1;
-                    }
-                    else {
-                        j = h;
-                    }
-                }
-                return i;
-            }
-
-            if (!collection || !$.isArray(collection) || !collection.length) {
-                throw new Error('The collection should never be null or empty here, ever! Something is very, very wrong.');
-            }
-
-            collection.sort(function (a, b) {
-                return a.query_from - b.query_from
+            _.each(self.rangeTypes, function (rangeType, i) {
+                self.chart.get('range-' + i + '-' + self.id).setData(datapoints.range[i]);
             });
 
-            $.each(collection, function (i, c) {
-                if (from <= c.query_to && to >= c.query_from) {
-                    // requested data intersects with collection
-                    var f = (from < c.query_from) ? c.query_from : from;
-                    var t = (to > c.query_to) ? c.query_to : to;
-                    var i = bisectPoints(f, c.data);
-                    var j = bisectPoints(t, c.data);
+            self.hideLoading();
 
-                    points = points.concat(c.data.slice(i, j));
-                }
-            });
+            self.streamList.updateKnownMaxRange(data);
 
-            data.data = points;
-            data.label = collection[0].label;
-            data.from = from;
-            data.to = to;
+            self.setExportDataURL(settings.url);
+        }).fail(function () {
+            self.hideLoading();
+        });
+    };
 
-            callback(data);
-        }
+    function StreamList(element, options) {
+        var self = this;
 
-        if (collection) {
-            // show local data first, add more data to the plot when received
-            selectData();
-        }
-
-        if (intervals.length) {
-            $.each(intervals, function (i, interval) {
-                var from = interval[0];
-                var to = interval[1];
-
-                var get_url = $.datastream.defaults.url + stream_id;
-                var params = {
-                    'g': granularity,
-                    's': Math.floor(from / 1000).toString(),
-                    'e': Math.floor(to / 1000).toString(),
-                    'd': 'm'
-                };
-
-                console.debug('GET ' + get_url);
-
-                query_in_progress = true;
-                $.getJSON(get_url, params, function (data, textStatus, jqXHR) {
-                    var points = [];
-                    var processed_data = {};
-                    var label = $.datastream.streamName(data) + ' = ?';
-                    var new_interval = true;
-                    var update = true;
-                    var collection = cached_data[stream_id][granularity] || null;
-
-                    if (debug) {
-                        debug.find('#debugTable tr:last').after(
-                            $('<tr>')
-                                .append($('<td>').html($.datastream.streamName(data)))
-                                .append($('<td>').html(granularity))
-                                .append($('<td>').html(toDebugTime(from)))
-                                .append($('<td>').html(toDebugTime(to)))
-                                .append($('<td>').html(data.datapoints.length))
-                        );
-                    }
-
-                    if (!data.datapoints.length) {
-                        return;
-                    }
-
-                    // Format data points; we use for because it runs faster
-                    // than each and we might have thousands of points here
-                    for (var j = 0; j < data.datapoints.length; j += 1) {
-                        var t = data.datapoints[j].t;
-                        var v = data.datapoints[j].v;
-
-                        if ($.isPlainObject(t)) {
-                            t = new Date(t.a).getTime();
-                        }
-                        else {
-                            t = new Date(t).getTime();
-                        }
-
-                        if ($.isPlainObject(v)) {
-                            v = v.m;
-                        }
-                        else {
-                            // v = v;
-                        }
-
-                        points.push([t, v]);
-                    }
-
-                    // Time of first and last point
-                    var first = data.datapoints[0];
-                    var last = data.datapoints[data.datapoints.length - 1];
-                    if ($.isPlainObject(first.t)) {
-                        var p_f = new Date(first.t.z).getTime();
-                        var p_t = new Date(last.t.z).getTime();
-                    }
-                    else {
-                        var p_f = new Date(first.t).getTime();
-                        var p_t = new Date(last.t).getTime();
-                    }
-
-                    // Add to cache
-                    if (!cached_data[stream_id][granularity]) {
-                        cached_data[stream_id][granularity] = [];
-                    }
-                    else {
-                        $.each(collection, function (j, c) {
-                            var k = 0;
-                            // concatenate with an existing interval if possible
-                            if (c.points_from === to) {
-                                if (points.length === 1 &&
-                                    points[0][0] === c.data[0][0] &&
-                                    points[0][1] === c.data[0][1]) {
-                                    update = false;
-                                    return false;
-                                }
-                                // remove overlapping points
-                                while (k < c.data.length) {
-                                    if (points[points.length - 1][0] >= c.data[k][0]) {
-                                        k += 1;
-                                    }
-                                    else {
-                                        break;
-                                    }
-                                }
-                                c.data = points.concat(c.data.slice(k));
-                                c.query_from = from;
-                                c.points_from = p_f;
-                                new_interval = false;
-                            }
-                            else if (c.points_to === from) {
-                                if (points.length === 1 &&
-                                    points[0][0] === c.data[c.data.length - 1][0] &&
-                                    points[0][1] === c.data[c.data.length - 1][1]) {
-                                    update = false;
-                                    return false;
-                                }
-                                // remove overlapping points
-                                while (k < c.data.length) {
-                                    if (points[0][0] <= c.data[c.data.length - 1 - k][0]) {
-                                        k += 1;
-                                    }
-                                    else {
-                                        break;
-                                    }
-                                }
-                                c.data = c.data.slice(0, c.data.length - k).concat(points);
-                                c.query_to = to;
-                                c.points_to = p_t;
-                                new_interval = false;
-                            }
-                        });
-                    }
-
-                    if (update) {
-                        if (new_interval) {
-                            processed_data.data = points;
-                            processed_data.label = label;
-                            processed_data.query_from = from;
-                            processed_data.query_to = to;
-                            processed_data.points_from = p_f;
-                            processed_data.points_to = p_t;
-                            cached_data[stream_id][granularity].push(processed_data);
-                        }
-
-                        selectData();
-                    }
-                }).complete(function () {
-                    // TODO: Why here and not in the callback above?
-                    query_in_progress = false;
-                });
-            });
-        }
+        self.element = element;
+        self.options = options;
+        self.streams = {};
+        self.minRange = null;
+        self.maxRange = null;
     }
 
-    function init(plot) {
-        var enabled = false;
-        var streams = [];
-        var zoom_stack = [];
-        var granularity = [
-            {'name': "Seconds",    'key': 's', 'span': 1},
-            {'name': "10 Seconds", 'key': 'S', 'span': 10},
-            {'name': "Minutes",    'key': 'm', 'span': 60},
-            {'name': "10 Minutes", 'key': 'M', 'span': 600},
-            {'name': "Hours",      'key': 'h', 'span': 3600},
-            {'name': "6 Hours",    'key': 'H', 'span': 21600},
-            {'name': "Days",       'key': 'd', 'span': 86400}
-        ];
-        var mode = 0;
+    StreamList.prototype.loadData = function (event, streams) {
+        var self = this;
 
-        plot.streams = function () {
-            return streams;
-        };
+        _.each(_.pick(self.streams, streams), function (stream, id) {
+            stream.loadData(event);
+        });
+    };
 
-        function processOptions(plot, s) {
-            if (s.datastream) {
-                enabled = true;
-                streams = s.datastream.streams;
+    StreamList.prototype.newStream = function (stream) {
+        var self = this;
 
-                if (s.to === null) {
-                    s.to = new Date().getTime();
-                }
-                else if (jQuery.type(s.to) === 'date') {
-                    s.to = s.to.getTime();
-                }
+        assert(!_.has(self.streams, stream.id));
 
-                if (s.granularity === null) {
-                    s.granularity = 2;
-                }
-
-                if (s.from !== null) {
-                    mode = 1;
-                }
-
-                if (s.from === null) {
-                    s.from = s.to - plot.getPlaceholder().width() * granularity[s.granularity].span * 1000;
-                }
-                else if (jQuery.type(s.from) === 'date') {
-                    s.from = s.from.getTime();
-                }
-
-                s.HtmlText = true;
-                s.title = "My Plot";
-
-                plot.getAxes().xaxis.options.mode = 'time';
-                plot.getAxes().xaxis.options.ticks = Math.floor(plot.getPlaceholder().width() / 75);
+        if (stream.tags && stream.tags.visualization && !stream.tags.visualization.hidden) {
+            try {
+                new Stream(stream, self);
+            }
+            catch (e) {
+                // We ignore the exception because we have already logged it
             }
         }
+    };
 
-        function updateData(data) {
-            var new_stream = true;
-            var new_data = [];
-            var options = plot.getOptions();
-            var xaxes_options = plot.getAxes().xaxis.options;
+    StreamList.prototype.setExtremes = function (event) {
+        var self = this;
 
-            $.each(plot.getData(), function (key, val) {
-                if (val.data.length) {
-                    if (val.label === data.label) {
-                        new_data.push(data);
-                        new_stream = false;
-                    }
-                    else {
-                        new_data.push({
-                            'data': val.data,
-                            'label': val.label
-                        });
-                    }
-                    delete val.data;
-                }
-            });
+        self._setExtremes(event.min, event.max, 'x-axis');
+    };
 
-            if (new_stream) {
-                new_data.push(data);
-            }
+    StreamList.prototype._setExtremes = function (min, max, axis) {
+        var self = this;
 
-            plot.setData(new_data);
-            xaxes_options.min = options.from;
-            xaxes_options.max = options.to;
-            plot.setupGrid();
-            plot.draw();
+        var charts = _.uniq(_.pluck(_.values(self.streams), 'chart'));
+
+        _.each(charts, function (chart, i) {
+            // We set "syncing" flag on the event so that charts know that they have to load data now
+            chart.get(axis).setExtremes(min, max, true, false, {'syncing': true});
+        });
+    };
+
+    StreamList.prototype.updateKnownMaxRange = function (data) {
+        var self = this;
+
+        assert(_.has(self.streams, data.id));
+
+        if (!data.datapoints || data.datapoints.length === 0) {
+            return;
         }
 
-        plot.addStream = function(stream) {
-            var options = plot.getOptions();
-            var gr = granularity[options.granularity].key;
-            var span = options.to - options.from;
+        var firstDatapoint = data.datapoints[0];
+        var lastDatapoint = data.datapoints[data.datapoints.length - 1];
 
-            if (mode === 1) {
-                // If alternative mode, find the best granularity
-                for (var i = 0; i < granularity.length; i++) {
-                    if (span / 1000 / granularity[i].span < 2 * options.width) {
-                        break;
-                    }
-                }
-                i = (i > 0) ? i - 1 : i;
-                gr = granularity[i].key;
-            }
+        // We go through downsampled timestamps in such order to maximize the range
+        var start = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+        var end = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
 
-            if ($.inArray(stream, options.datastream.streams) < 0) {
-                options.datastream.streams.push(stream);
-            }
+        var changed = false;
 
-            getStreamData(stream, gr, options.from - Math.floor(span / 2),
-                options.to + Math.floor(span / 2), function (data) {
-                updateData(data);
-            });
-        };
-
-        function update() {
-            $.each(streams, function (key, val) {
-                plot.addStream(val);
-            });
+        if (!_.isUndefined(start) && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
+            changed = true;
+            self.minRange = moment.utc(start).valueOf();
+        }
+        if (!_.isUndefined(end) && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
+            changed = true;
+            self.maxRange = moment.utc(end).valueOf();
         }
 
-        function zoom(from, to) {
-            var options = plot.getOptions();
-            var xaxes_options = plot.getAxes().xaxis.options;
-
-            zoom_stack.push({
-                'min': xaxes_options.min,
-                'max': xaxes_options.max,
-                'granularity': options.granularity
-            });
-
-            mode = 1;
-            options.from = from;
-            options.to = to;
-
-            plot.clearSelection();
-            update();
-
-            // Stupid work-around. For crosshair to work we must set selection
-            // plugin to an insane selection. Otherwise the plugin thinks we
-            // are still in selection process. We could hack the plugin, but it
-            // is not polite to play with other people's toys.
-            plot.setSelection({
-                'xaxes': {
-                    'from': 0,
-                    'to': 0
-                }
-            });
+        if (changed && self.minRange !== null && self.maxRange !== null) {
+            self._setExtremes(self.minRange, self.maxRange, 'navigator-x-axis');
         }
+    };
 
-        function zoomOut() {
-            if (!zoom_stack.length) {
-                return;
-            }
+    StreamList.prototype.matchWith = function (a, b) {
+        var self = this;
 
-            var options = plot.getOptions();
-            var zoom_level = zoom_stack.pop();
+        if (!a.tags.visualization.with) return false;
 
-            options.from = zoom_level.min;
-            options.to = zoom_level.max;
-            options.granularity = zoom_level.granularity;
-            update();
-        }
+        // TODO: Should we use _.findWhere?
+        if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
 
-        function onPlotSelected(event, ranges) {
-            zoom(ranges.xaxis.from, ranges.xaxis.to);
-        }
-
-        function onContextMenu() {
+        if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
+            console.warn("Streams matched, but incompatible Y axis", a, b);
             return false;
         }
 
-        function onMouseUp(event) {
-            switch (event.which) {
-                case 3:
-                    // Right mouse button pressed
-                    if (plot.getSelection() === null) {
-                        zoomOut();
-                    }
+        return true;
+    };
+
+    StreamList.prototype.isWith = function (withStream) {
+        var self = this;
+
+        var match = null;
+
+        _.each(self.streams, function (stream, id) {
+            // We cannot break, so just returimmediately.
+            if (match) return;
+
+            // withStream might be in the self.streams, ignore it (otherwise it
+            // cloud match itself below and break things).
+            if (stream === withStream) return;
+
+            if (self.matchWith(stream, withStream) || self.matchWith(withStream, stream)) {
+                match = stream;
             }
+        });
+
+        return match;
+    };
+
+	$.fn.datastream = function (options) {
+        if (!$.isReady) {
+            console.error("Use of datastream before DOM was ready");
+            return this;
+        }
+        options = $.extend(true, {}, $.fn.datastream.defaults, options);
+
+        if (this.length === 0) {
+            console.warn("Use of datastream on an empty group of elements");
+            return this;
         }
 
-        var update_legend_timeout = null;
-        var latest_position = null;
+        this.each(function (i, element) {
+            var streamList = new StreamList(element, options);
 
-        function updateLegend() {
-            update_legend_timeout = null;
+            // TODO: Will load only the first page of streams
+            getJSON(options.streamListUri, options.streamListParams, function (data, textStatus, jqXHR) {
+                _.each(data.objects, function (stream, i) {
+                    streamList.newStream(stream);
+                });
+            });
+        });
 
-            var legends = plot.getPlaceholder().find('.legendLabel');
-            var axes = plot.getAxes();
-            var dataset = plot.getData();
+        return this;
+    };
 
-            if (latest_position.x < axes.xaxis.min || latest_position.x > axes.xaxis.max || latest_position.y < axes.yaxis.min || latest_position.y > axes.yaxis.max) {
-                return;
-            }
+    $.fn.datastream.defaults = {
+        'streamListUri': '/api/v1/stream/',
+        'streamListParams': {}
+    };
 
-            // We use for because it runs faster than each and we might have
-            // thousands of points here
-            for (var i = 0; i < dataset.length; ++i) {
-                var series = dataset[i];
-
-                if (!series.data.length) {
-                    return;
-                }
-
-                // Find the nearest points, x-wise; we use for because it runs
-                // faster than each and we might have thousands of points here
-                for (var j = 0; j < series.data.length; ++j) {
-                    if (series.data[j][0] > latest_position.x) {
-                        break;
-                    }
-                }
-
-                // interpolate
-                var p1 = series.data[j - 1];
-                var p2 = series.data[j];
-                if (p1 == null) {
-                    var y = p2[1];
-                }
-                else if (p2 == null) {
-                    var y = p1[1];
-                }
-                else {
-                    var y = p1[1] + (p2[1] - p1[1]) * (latest_position.x - p1[0]) / (p2[0] - p1[0]);
-                }
-
-                legends.eq(i).text(series.label.replace(/=.*/, '= ' + y.toFixed(2)));
-            }
-        }
-
-        function onHover(event, pos) {
-            latest_position = pos;
-            if (!update_legend_timeout) {
-                update_legend_timeout = setTimeout(updateLegend, 50);
-            }
-        }
-
-        function onPan() {
-            var options = plot.getOptions();
-            var xaxes_options = plot.getAxes().xaxis.options;
-
-            if (Math.abs(options.from - xaxes_options.min) / (xaxes_options.max - xaxes_options.min) > 0.3) {
-                options.from = xaxes_options.min;
-                options.to = xaxes_options.max;
-                console.debug("FETCH min: " + toDebugTime(xaxes_options.min) + " max: " + toDebugTime(xaxes_options.max));
-
-                update();
-            }
-        }
-
-        function onScroll(event, delta, deltaX, deltaY) {
-            var options = plot.getOptions();
-            var xaxes_options = plot.getAxes().xaxis.options;
-
-            function changeGranularity(delta) {
-                zoom_stack = [];
-                if (mode === 1) {
-                    var time_span = xaxes_options.max - xaxes_options.min;
-                    var theoretic_time_span = plot.width() * granularity[options.granularity].span * 1000;
-
-                    if ((time_span - theoretic_time_span) * delta > 0) {
-                        if (options.granularity + delta >= 0 && options.granularity + delta < granularity.length) {
-                            options.granularity += delta;
-                        }
-                    }
-                    mode = 0;
-
-                }
-                else {
-                    if (options.granularity + delta < 0 || options.granularity + delta >= granularity.length) {
-                        return;
-                    }
-                    options.granularity += delta;
-                }
-
-                options.to = xaxes_options.max;
-                options.from = options.to - plot.width() * granularity[options.granularity].span * 1000;
-                plot_redrawing = true;
-                update();
-
-                setTimeout(function () {
-                    plot_redrawing = false;
-                }, 300);
-            }
-
-            if (!plot_redrawing && deltaY > 0.1) {
-                changeGranularity(1);
-
-            }
-            else if (!plot_redrawing && deltaY < -0.1) {
-                changeGranularity(-1);
-
-            }
-            else if (deltaX != 0) {
-                var frame_rate = options.pan.frameRate;
-                if (plot_redrawing || !frame_rate) {
-                    return false;
-                }
-
-                plot_redrawing = true;
-                setTimeout(function () {
-                    plot.pan({
-                        'left': -deltaX * 40,
-                        'top': 0
-                    });
-                    plot_redrawing = false;
-                }, 1 / frame_rate * 1000);
-            }
-
-            return false;
-        }
-
-        function bindEvents(plot, eventHolder) {
-            eventHolder.mouseup(onMouseUp).bind('contextmenu', onContextMenu);
-            plot.getPlaceholder().bind('plothover', onHover).bind('plotselected', onPlotSelected).bind('plotpan', onPan).bind('mousewheel', onScroll);
-            update();
-        }
-
-        function shutdown(plot, eventHolder) {
-            eventHolder.unbind('mouseup', onMouseUp).unbind('contextmenu', onContextMenu);
-
-            // TODO: jQuery supports event handler namespaces, we might want to use that?
-            plot.getPlaceholder().unbind('plothover', onHover).unbind('plotselected', onPlotSelected).bind('plotpan', onPan).unbind('mousewheel', onScroll);
-        }
-
-        plot.hooks.bindEvents.push(bindEvents);
-        plot.hooks.processOptions.push(processOptions);
-        plot.hooks.shutdown.push(shutdown);
-    }
-
-    $.plot.plugins.push({
-        'init': init,
-        'options': flot_defaults,
-        'name': 'datastream',
-        'version': '0.1'
-    });
 })(jQuery);
