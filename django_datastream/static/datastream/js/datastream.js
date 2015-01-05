@@ -618,13 +618,19 @@
         return _.union(['mean'], initial ? ['first', 'last'] : [])
     };
 
+    Stream.prototype.rangeDifference = function (a, b, granularity) {
+        // If difference is so that it would add or remove at least
+        // one datapoint at the given granularity, return true.
+        return Math.abs((a - b) / granularity.duration) >= 1.0;
+    };
+
     Stream.prototype.loadData = function (event) {
         var self = this;
 
         var range = self.computeRange(event.min, event.max);
 
-        if (range.start === self.lastRangeStart && range.end === self.lastRangeEnd) {
-            // Nothing really changed
+        if (!self.rangeDifference(range.start, self.lastRangeStart, range.granularity) && !self.rangeDifference(range.end, self.lastRangeEnd, range.granularity)) {
+            // Nothing really changed. Not enough for a datapoint to get into or out of the range at the given granularity.
             return;
         }
 
