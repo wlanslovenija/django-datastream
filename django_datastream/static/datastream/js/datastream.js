@@ -11,18 +11,6 @@
         return result;
     };
 
-    function getJSON(url, data, success) {
-        return $.ajax({
-            'dataType': 'json',
-            'url': url,
-            'data': data,
-            'success': success,
-            // We don't use global jQuery Ajax setting to not conflict with some other code,
-            // but we make sure we use traditional query params serialization for all our requests.
-            'traditional': true
-        });
-    }
-
     /**
      * Plugin for highlighting. It set a lower opacity for other series than the one that is hovered over.
      * Additionally, if not hovering over, a lower opacity is set based on series selected status.
@@ -181,6 +169,48 @@
             if (!_.isUndefined(obj[arguments[i]])) {
                 return obj[arguments[i]];
             }
+        }
+    }
+
+    function getJSON(url, data, success) {
+        return $.ajax({
+            'dataType': 'json',
+            'url': url,
+            'data': data,
+            'success': success,
+            // We don't use global jQuery Ajax setting to not conflict with some other code,
+            // but we make sure we use traditional query params serialization for all our requests.
+            'traditional': true
+        });
+    }
+
+    function getExtremeDatapoints(data) {
+        // earliest_datapoint and latest_datapoint are strings.
+        var start = data.earliest_datapoint || null;
+        var end = data.latest_datapoint || null;
+
+        if (data.datapoints && data.datapoints.length > 0) {
+            var firstDatapoint = data.datapoints[0];
+            var lastDatapoint = data.datapoints[data.datapoints.length - 1];
+
+            // We go through downsampled timestamps in such order to maximize the range
+            var datapointsStart = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
+            var datapointsEnd = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
+
+            if (start === null || (start && datapointsStart && moment.utc(datapointsStart).valueOf() < moment.utc(start).valueOf())) {
+                // datapointsStart is a string.
+                start = datapointsStart || null;
+            }
+            if (end === null || (end && datapointsEnd && moment.utc(datapointsEnd).valueOf() > moment.utc(end).valueOf())) {
+                // datapointsEnd is a string.
+                end = datapointsEnd || null;
+            }
+        }
+
+        // start and end values are null, or milliseconds.
+        return {
+            'start': start && moment.utc(start).valueOf(),
+            'end': end && moment.utc(end).valueOf()
         }
     }
 
@@ -464,6 +494,11 @@
 
             var settings = this;
 
+            var extremes = getExtremeDatapoints(data);
+
+            self.lastRangeStart = extremes.start;
+            self.lastRangeEnd = extremes.end;
+
             var datapoints = self.convertDatapoints(data.datapoints);
 
             self.chart.addAxis({
@@ -619,6 +654,9 @@
     };
 
     Stream.prototype.rangeDifference = function (a, b, granularity) {
+        assert(_.isNumber(a));
+        assert(_.isNumber(b));
+
         // If difference is so that it would add or remove at least
         // one datapoint at the given granularity, return true.
         return Math.abs((a - b) / granularity.duration) >= 1.0;
@@ -732,34 +770,17 @@
 
         assert(_.has(self.streams, data.id));
 
-        var start = data.earliest_datapoint;
-        var end = data.latest_datapoint;
-
-        if (data.datapoints && data.datapoints.length > 0) {
-            var firstDatapoint = data.datapoints[0];
-            var lastDatapoint = data.datapoints[data.datapoints.length - 1];
-
-            // We go through downsampled timestamps in such order to maximize the range
-            var datapointsStart = _.isObject(firstDatapoint.t) ? firstDefined(firstDatapoint.t, 'a', 'e', 'm', 'z') : firstDatapoint.t;
-            var datapointsEnd = _.isObject(lastDatapoint.t) ? firstDefined(lastDatapoint.t, 'z', 'm', 'e', 'a') : lastDatapoint.t;
-
-            if (!start || (start && datapointsStart && moment.utc(datapointsStart).valueOf() < moment.utc(start).valueOf())) {
-                start = datapointsStart;
-            }
-            if (!end || (end && datapointsEnd && moment.utc(datapointsEnd).valueOf() > moment.utc(end).valueOf())) {
-                end = datapointsEnd;
-            }
-        }
+        var extremes = getExtremeDatapoints(data);
 
         var changed = false;
 
-        if (start && (self.minRange === null || moment.utc(start).valueOf() < self.minRange)) {
+        if (extremes.start !== null && (self.minRange === null || extremes.start < self.minRange)) {
             changed = true;
-            self.minRange = moment.utc(start).valueOf();
+            self.minRange = extremes.start;
         }
-        if (end && (self.maxRange === null || moment.utc(end).valueOf() > self.maxRange)) {
+        if (extremes.end !== null && (self.maxRange === null || extremes.end > self.maxRange)) {
             changed = true;
-            self.maxRange = moment.utc(end).valueOf();
+            self.maxRange = extremes.end;
         }
 
         if (changed && self.minRange !== null && self.maxRange !== null) {
