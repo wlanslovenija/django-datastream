@@ -783,11 +783,24 @@
         this.each(function (i, element) {
             var streamList = new StreamList(element, options);
 
-            // TODO: Will load only the first page of streams
-            getJSON(options.streamListUri, options.streamListParams, function (data, textStatus, jqXHR) {
-                _.each(data.objects, function (stream, i) {
-                    streamList.newStream(stream);
+            var nextUri = options.streamListUri;
+            var nextParams = options.streamListParams;
+            async.whilst(function () {
+                return !!nextUri;
+            }, function (callback) {
+                getJSON(nextUri, nextParams, function (data, textStatus, jqXHR) {
+                    _.each(data.objects, function (stream, i) {
+                        streamList.newStream(stream);
+                    });
+
+                    nextUri = data.meta.next;
+                    nextParams = {};
+                    callback();
+                }).fail(function () {
+                    callback(arguments);
                 });
+            }, function (err) {
+                // Do nothing, Ajax errors should be handled globally.
             });
         });
 
