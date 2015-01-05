@@ -10,6 +10,21 @@ import datastream
 
 
 class DatastreamSerializer(serializers.Serializer):
+    def __init__(self, *args, **kwargs):
+        # We first call super __init__, but we mostly override everything.
+        super(DatastreamSerializer, self).__init__(*args, **kwargs)
+
+        # Force RFC-2822 because it is the only one which is widely supported in JavaScript and preserves timezones.
+        self.datetime_formatting = 'rfc-2822'
+
+        # With our custom serialization in to_simple we support only JSON.
+        # JSONP is an extra. We could make JSONP optional, too.
+        self.formats = ('json', 'jsonp')
+
+        self.supported_formats = []
+        for f in self.formats:
+            self.supported_formats.append(self.content_types[f])
+
     def to_json(self, data, options=None):
         options = options or {}
         data = self.to_simple(data, options)
