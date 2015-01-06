@@ -1,15 +1,17 @@
 (function ($) {
 
-    _.findIndex = function (obj, iterator, context) {
-        var result;
-        _.any(obj, function(value, index, list) {
-            if (iterator.call(context, value, index, list)) {
-                result = index;
-                return true;
-            }
-        });
-        return result;
-    };
+    _.mixin({
+        'findIndex': function (obj, iterator, context) {
+            var result = null;
+            _.any(obj, function(value, index, list) {
+                if (iterator.call(context, value, index, list)) {
+                    result = index;
+                    return true;
+                }
+            });
+            return result;
+        }
+    });
 
     /**
      * Plugin for highlighting. It set a lower opacity for other series than the one that is hovered over.
