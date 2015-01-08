@@ -40,7 +40,7 @@ if __name__ == '__main__':
         ],
         install_requires=[
             'Django>=1.5',
-            'datastream>=0.4.0',
+            'datastream>=0.4.1',
             'django-tastypie>=0.9.16',
             'ujson==1.34',
             'pytz>=2012h',
