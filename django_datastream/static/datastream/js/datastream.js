@@ -638,16 +638,22 @@
                 'data': datapoints.main[0] || datapoints.range[0]
             }));
 
+            // TODO: Here now we call set extremes multiple times, potentially redrawing multiple times. We should try to minimize redraws.
+
+            var eventPayload = {'reason': 'initial', 'path': [self.id]};
+            self.updateKnownMaxRange(data, eventPayload);
+
             // Without the following range selector is not displayed until first zooming.
             // Additionally, on streams which reuse existing graphs, we have to trigger
             // setExtremes event and loadData. So we call this every time a new stream
-            // is added to a chart.
-            // TODO: Why calling setExtremes on xAxis[0] is not idempotent operation but grows range just a bit?
-            var eventPayload = {'reason': 'initial', 'path': [self.id]};
-            // We are using long form of .setExtremes() so that we can pass eventPayload.
-            self.chart.xAxis[0].setExtremes(null, null, true, false, eventPayload);
+            // is added to a chart. We use existing known minRange and maxRange so that
+            // we start with the range in sync with others. If later streams are larger,
+            // later streams will call updateKnownMaxRange above and extend them for all
+            // previous charts, including this one now.
+            self.chart.xAxis[0].setExtremes(self.streamList.minRange, self.streamList.maxRange, true, false, eventPayload);
 
-            self.updateKnownMaxRange(data, eventPayload);
+            // We also have to extend the navigator.
+            self.chart.get('navigator-x-axis').setExtremes(self.streamList.minRange, self.streamList.maxRange, true, false, eventPayload);
 
             self.setExportDataURL(settings.url);
         }).always(function () {
@@ -729,6 +735,7 @@
 
         var range = self.computeRange(event.min, event.max);
 
+        // TODO: For the right edge we should check the last datapoint timestamp, not the last range end, because there might be now a new datapoint to the right of the last datapoint, but before the last range end
         if (range.granularity === self.lastGranularity && (!self.rangeDifference(range.start, self.lastRangeStart, range.granularity) || range.start >= self.lastRangeStart) && (!self.rangeDifference(range.end, self.lastRangeEnd, range.granularity) || range.end <= self.lastRangeEnd)) {
             // New granularity is the same as the last granularity and new range is inside the old range
             // (or range edges so close to the previous edges that no new datapoint will get into or out
