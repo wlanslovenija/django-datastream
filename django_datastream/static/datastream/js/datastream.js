@@ -239,8 +239,10 @@
             throw new Error("Unsupported value downsamplers");
         }
 
-        self.lastRangeStart = null;
-        self.lastRangeEnd = null;
+        self.minRange = null; // In milliseconds.
+        self.maxRange = null; // In milliseconds.
+        self.lastRangeStart = null; // In seconds.
+        self.lastRangeEnd = null; // In seconds.
 
         self.mainTypes = [];
         self.rangeTypes = [];
@@ -292,7 +294,8 @@
         var self = this;
 
         // This chart can be reused between many streams so using "self"
-        // in callbacks will make things work only for the first stream
+        // in callbacks will make things work only for the first stream.
+        // For example, "self.id" corresponds to the first stream.
         $('<div/>').addClass('chart').appendTo(self.streamList.element).highcharts('StockChart', {
             'chart': {
                 'zoomType': 'x',
@@ -356,16 +359,54 @@
                 'id': 'x-axis',
                 'events': {
                     'afterSetExtremes': function (event) {
-                        if (event.syncing) {
-                            // It is our event and we are syncing extremes between charts, load data for all streams in this chart
-                            var streams = _.uniq(_.filter(_.map(self.chart.series, function (series, i) {
-                                return series.options.streamId;
-                            }), function (series) {return !!series;}));
-                            self.streamList.loadData(event, streams);
+                        if (event.reason) {
+                            // It is our event.
+                            if (event.reason === 'user') {
+                                // Use changed extremes, server list extremes were updated and now each chart
+                                // has to update its series.
+                                var streams = _.uniq(_.filter(_.map(self.chart.series, function (series, i) {
+                                    return series.options.streamId;
+                                }), function (series) {return !!series;}));
+                                // We are using "path" as a list of of all streams loaded this time to prevent a
+                                // "catch up" loop, where new and new loading requests find new datapoints, extend
+                                // the range of stream list, and load again all, to discover new datapoints added
+                                // in meantime. So we don't load any streams which are already in the "path".
+                                streams = _.difference(streams, event.path);
+                                self.streamList.loadData(event, streams);
+                            }
+                            else if (event.reason === 'initial') {
+                                // Extremes were changed as part of initial loading. Extremes are made larger and
+                                // larger as new streams are being added to the stream list. When loading initially
+                                // each individual stream already loaded the largest range of datapoints for a given
+                                // stream, so there is no reason to try to load datapoints with larger extremes.
+                                // The same datapoints would be returned.
+                                // The exception is if a new datapoint was added during the initialization process,
+                                // but we choose to ignore it because already initialization loads a lot of data and
+                                // additionally it could lead to "catch up" loop, where new and new requests find new
+                                // datapoints, extend the range of stream list, and load again all, to discover new
+                                // datapoints added in meantime. This is the same reason why we are storing the list
+                                // of already loaded streams in "path".
+                                // Additionally, the first stream loaded could be much shorter in overall time span than
+                                // a later stream (the first stream maybe corresponding to a sensor added much later on
+                                // while other streams are full of datapoints). Maybe even loaded at a higher granularity.
+                                // After a later stream is added and stream list extremes became larger, loading the
+                                // later stream at a lower granularity, it might be visually better to load the first
+                                // stream at this lower granularity as well, instead of trying to squeeze the higher
+                                // granularity to a now visually small area in the chart. We choose again to minimize
+                                // loading during initialization.
+                                // So, we simply ignore the afterSetExtremes event when reason is "initial".
+                                // TODO: We should change the initial loading process to first go through all streams and make a plan how and what to load, to maximize looks of all streams, but minimize the amount of data that is loaded. Additionally, the number of redraws could be minimized, and also it should be possible to request that initially some other view is loaded, with data for that view, and not the same initial view (so URL could have the state of the view in its hash)
+                            }
+                            else {
+                                assert(false, event.reason);
+                            }
                         }
                         else {
-                            // User changed extremes, first sync all charts
-                            self.streamList.setExtremes(event);
+                            // User changed extremes. Visually the current chart has
+                            // been redrawn with existing data, but now let's load data
+                            // for potentially new granularity and range in all charts,
+                            // including this one. We start with empty path.
+                            self.streamList.setExtremes(event, 'user', []);
                         }
                     }
                 },
@@ -498,8 +539,9 @@
 
             var extremes = getExtremeDatapoints(data);
 
-            self.lastRangeStart = extremes.start;
-            self.lastRangeEnd = extremes.end;
+            // In JavaScript timestamps are in milliseconds, but last range values are in seconds.
+            self.lastRangeStart = extremes.start / 1000;
+            self.lastRangeEnd = extremes.end / 1000;
 
             var datapoints = self.convertDatapoints(data.datapoints);
 
@@ -596,9 +638,12 @@
             // setExtremes event and loadData. So we call this every time a new stream
             // is added to a chart.
             // TODO: Why calling setExtremes on xAxis[0] is not idempotent operation but grows range just a bit?
-            self.chart.xAxis[0].setExtremes();
+            var eventPayload = {'reason': 'initial', 'path': [self.id]};
+            // We are using long form of .setExtremes() so that we can pass eventPayload.
+            // TODO: Do we have to redraw?
+            self.chart.xAxis[0].setExtremes(null, null, true, false, eventPayload);
 
-            self.streamList.updateKnownMaxRange(data);
+            self.updateKnownMaxRange(data, eventPayload);
 
             self.setExportDataURL(settings.url);
         }).always(function () {
@@ -606,6 +651,7 @@
         });
     };
 
+    // Inputs are expected to be in milliseconds.
     Stream.prototype.computeRange = function (min, max) {
         var self = this;
 
@@ -667,12 +713,20 @@
     Stream.prototype.loadData = function (event) {
         var self = this;
 
+        // We should not get here when loading initial data.
+        assert.notEqual(event.reason, 'initial');
+
+        // We should not get here with ourselves already in the path.
+        assert(!_.contains(event.path, self.id));
+
         var range = self.computeRange(event.min, event.max);
 
         if (!self.rangeDifference(range.start, self.lastRangeStart, range.granularity) && !self.rangeDifference(range.end, self.lastRangeEnd, range.granularity)) {
             // Nothing really changed. Not enough for a datapoint to get into or out of the range at the given granularity.
             return;
         }
+
+        // TODO: We should also return if range.start is before self.minRange and range.end is after self.maxRange, because there are probably no new datapoints there, but this would prevent slowly loading new datapoints if there are in fact added in meantime, but is this really the way we would want to load them, instead of streaming them in real-time for example?
 
         self.showLoading();
         getJSON(self.resource_uri, {
@@ -700,12 +754,35 @@
 
             self.hideLoading();
 
-            self.streamList.updateKnownMaxRange(data);
+            self.updateKnownMaxRange(data, {'reason': event.reason, 'path': event.path.concat([self.id])});
 
             self.setExportDataURL(settings.url);
         }).fail(function () {
             self.hideLoading();
         });
+    };
+
+    Stream.prototype.updateKnownMaxRange = function (data, eventPayload) {
+        var self = this;
+
+        assert.equal(self.id, data.id);
+
+        var extremes = getExtremeDatapoints(data);
+
+        var changed = false;
+
+        if (extremes.start !== null && (self.minRange === null || extremes.start < self.minRange)) {
+            changed = true;
+            self.minRange = extremes.start;
+        }
+        if (extremes.end !== null && (self.maxRange === null || extremes.end > self.maxRange)) {
+            changed = true;
+            self.maxRange = extremes.end;
+        }
+
+        if (changed && self.minRange !== null && self.maxRange !== null) {
+            self.streamList.updateKnownMaxRange(self.id, self.minRange, self.maxRange, eventPayload);
+        }
     };
 
     function StreamList(element, options) {
@@ -721,9 +798,17 @@
     StreamList.prototype.loadData = function (event, streams) {
         var self = this;
 
-        _.each(_.pick(self.streams, streams), function (stream, id) {
-            stream.loadData(event);
-        });
+        var originalPath = event.path;
+        try {
+            _.each(_.pick(self.streams, streams), function (stream, id) {
+                var currentStreams = _.without(streams, id);
+                event.path = originalPath.concat(currentStreams);
+                stream.loadData(event);
+            });
+        }
+        finally {
+            event.path = originalPath;
+        }
     };
 
     StreamList.prototype.newStream = function (stream) {
@@ -741,52 +826,43 @@
         }
     };
 
-    StreamList.prototype.setExtremes = function (event) {
+    StreamList.prototype.setExtremes = function (event, reason, path) {
         var self = this;
 
         // We use == and not === to test for both null and undefined.
         if (event.min == null || event.max == null) return;
 
-        self._setExtremes(event.min, event.max, 'x-axis');
+        self._setExtremes(event.min, event.max, 'x-axis', {'reason': reason, 'path': path});
     };
 
-    StreamList.prototype._setExtremes = function (min, max, axis) {
+    StreamList.prototype._setExtremes = function (min, max, axis, eventPayload) {
         var self = this;
 
         var charts = _.uniq(_.pluck(_.values(self.streams), 'chart'));
 
         _.each(charts, function (chart, i) {
-            var currentExtremes = chart.get(axis).getExtremes();
-
-            // If there is no change, just return.
-            // We use == and not === to compare for both null and undefined.
-            if (currentExtremes.userMin == min && currentExtremes.userMax == max) return;
-
-            // We set "syncing" flag on the event so that charts know that they have to load data now
-            chart.get(axis).setExtremes(min, max, true, false, {'syncing': true});
+            chart.get(axis).setExtremes(min, max, true, false, eventPayload);
         });
     };
 
-    StreamList.prototype.updateKnownMaxRange = function (data) {
+    StreamList.prototype.updateKnownMaxRange = function (streamId, minRange, maxRange, eventPayload) {
         var self = this;
 
-        assert(_.has(self.streams, data.id));
-
-        var extremes = getExtremeDatapoints(data);
+        assert(_.has(self.streams, streamId));
 
         var changed = false;
 
-        if (extremes.start !== null && (self.minRange === null || extremes.start < self.minRange)) {
+        if (self.minRange === null || minRange < self.minRange) {
             changed = true;
-            self.minRange = extremes.start;
+            self.minRange = minRange;
         }
-        if (extremes.end !== null && (self.maxRange === null || extremes.end > self.maxRange)) {
+        if (self.maxRange === null || maxRange > self.maxRange) {
             changed = true;
-            self.maxRange = extremes.end;
+            self.maxRange = maxRange;
         }
 
         if (changed && self.minRange !== null && self.maxRange !== null) {
-            self._setExtremes(self.minRange, self.maxRange, 'navigator-x-axis');
+            self._setExtremes(self.minRange, self.maxRange, 'navigator-x-axis', eventPayload);
         }
     };
 
@@ -798,6 +874,7 @@
         // TODO: Should we use _.findWhere?
         if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
 
+        // TODO: Should we compare highest granularity as well and require it to be the same? Or should we look at the combined streams to have the highest granularity based on the highest granularity of all of them?
         if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
             console.warn("Streams matched, but incompatible Y axis", a, b);
             return false;
