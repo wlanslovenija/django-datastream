@@ -411,7 +411,10 @@
                     }
                 },
                 'ordinal': false,
-                'minRange': MAX_POINTS_NUMBER * 1000 // TODO: Should this depend on possible granularity for the stream(s)? Or some other hint?
+                // We set it based on the seconds granularity and in computeRange make sure that we
+                // don't load data too high for a particular stream.
+                // TODO: We should set this based on the highest granularity of all streams in the stream list. For that we would first have to go through all streams as described in TODO above.
+                'minRange': MAX_POINTS_NUMBER * 1000
             },
             'yAxis': [],
             'plotOptions': {
@@ -640,7 +643,6 @@
             // TODO: Why calling setExtremes on xAxis[0] is not idempotent operation but grows range just a bit?
             var eventPayload = {'reason': 'initial', 'path': [self.id]};
             // We are using long form of .setExtremes() so that we can pass eventPayload.
-            // TODO: Do we have to redraw?
             self.chart.xAxis[0].setExtremes(null, null, true, false, eventPayload);
 
             self.updateKnownMaxRange(data, eventPayload);
@@ -659,6 +661,7 @@
             'granularity': GRANULARITIES[0]
         };
 
+
         if (!_.isNumber(min) || !_.isNumber(min)) {
             return range;
         }
@@ -675,6 +678,9 @@
                 break;
             }
             range.granularity = granularity;
+            if (granularity.name === self.highest_granularity) {
+                break;
+            }
         }
 
         // We enlarge range for 10 % in each direction
@@ -874,7 +880,6 @@
         // TODO: Should we use _.findWhere?
         if (!_.isEqual(_.pick(b.tags, _.keys(a.tags.visualization.with)), a.tags.visualization.with)) return false;
 
-        // TODO: Should we compare highest granularity as well and require it to be the same? Or should we look at the combined streams to have the highest granularity based on the highest granularity of all of them?
         if (a.tags.visualization.minimum !== b.tags.visualization.minimum || a.tags.visualization.maximum !== b.tags.visualization.maximum || a.tags.visualization.unit !== b.tags.visualization.unit) {
             console.warn("Streams matched, but incompatible Y axis", a, b);
             return false;
