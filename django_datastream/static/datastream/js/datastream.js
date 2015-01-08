@@ -243,6 +243,7 @@
         self.maxRange = null; // In milliseconds.
         self.lastRangeStart = null; // In seconds.
         self.lastRangeEnd = null; // In seconds.
+        self.lastGranularity = null;
 
         self.mainTypes = [];
         self.rangeTypes = [];
@@ -545,6 +546,7 @@
             // In JavaScript timestamps are in milliseconds, but last range values are in seconds.
             self.lastRangeStart = extremes.start / 1000;
             self.lastRangeEnd = extremes.end / 1000;
+            self.lastGranularity = range.granularity;
 
             var datapoints = self.convertDatapoints(data.datapoints);
 
@@ -727,8 +729,10 @@
 
         var range = self.computeRange(event.min, event.max);
 
-        if (!self.rangeDifference(range.start, self.lastRangeStart, range.granularity) && !self.rangeDifference(range.end, self.lastRangeEnd, range.granularity)) {
-            // Nothing really changed. Not enough for a datapoint to get into or out of the range at the given granularity.
+        if (range.granularity === self.lastGranularity && (!self.rangeDifference(range.start, self.lastRangeStart, range.granularity) || range.start >= self.lastRangeStart) && (!self.rangeDifference(range.end, self.lastRangeEnd, range.granularity) || range.end <= self.lastRangeEnd)) {
+            // New granularity is the same as the last granularity and new range is inside the old range
+            // (or range edges so close to the previous edges that no new datapoint will get into or out
+            // of the range at the given granularity). There will be no new datapoints really loaded.
             return;
         }
 
@@ -749,6 +753,7 @@
 
             self.lastRangeStart = range.start;
             self.lastRangeEnd = range.end;
+            self.lastGranularity = range.granularity;
 
             var datapoints = self.convertDatapoints(data.datapoints);
             _.each(self.mainTypes, function (mainType, i) {
