@@ -1,14 +1,14 @@
 /**
- * @license Highstock JS v1.3.7 (2013-10-24)
+ * @license Highstock JS v2.1.7 (2015-06-26)
  * Exporting module
  *
- * (c) 2010-2013 Torstein Hønsi
+ * (c) 2010-2014 Torstein Honsi
  *
  * License: www.highcharts.com/license
  */
 
 // JSLint options:
-/*global Highcharts, document, window, Math, setTimeout */
+/*global Highcharts, HighchartsAdapter, document, window, Math, setTimeout */
 
 (function (Highcharts) { // encapsulate
 
@@ -16,12 +16,14 @@
 var Chart = Highcharts.Chart,
 	addEvent = Highcharts.addEvent,
 	removeEvent = Highcharts.removeEvent,
+	fireEvent = HighchartsAdapter.fireEvent,
 	createElement = Highcharts.createElement,
 	discardElement = Highcharts.discardElement,
 	css = Highcharts.css,
 	merge = Highcharts.merge,
 	each = Highcharts.each,
 	extend = Highcharts.extend,
+	splat = Highcharts.splat,
 	math = Math,
 	mathMax = math.max,
 	doc = document,
@@ -77,7 +79,7 @@ defaultOptions.navigation = {
 		symbolX: 12.5,
 		symbolY: 10.5,
 		align: 'right',
-		buttonSpacing: 3, 
+		buttonSpacing: 3,
 		height: 22,
 		// text: null,
 		theme: {
@@ -158,16 +160,16 @@ defaultOptions.exporting = {
 };
 
 // Add the Highcharts.post utility
-Highcharts.post = function (url, data) {
+Highcharts.post = function (url, data, formAttributes) {
 	var name,
 		form;
-	
+
 	// create the form
-	form = createElement('form', {
+	form = createElement('form', merge({
 		method: 'post',
 		action: url,
 		enctype: 'multipart/form-data'
-	}, {
+	}, formAttributes), {
 		display: NONE
 	}, doc.body);
 
@@ -188,6 +190,48 @@ Highcharts.post = function (url, data) {
 };
 
 extend(Chart.prototype, {
+
+	/**
+	 * A collection of regex fixes on the produces SVG to account for expando properties,
+	 * browser bugs, VML problems and other. Returns a cleaned SVG.
+	 */
+	sanitizeSVG: function (svg) {
+		return svg
+			.replace(/zIndex="[^"]+"/g, '')
+			.replace(/isShadow="[^"]+"/g, '')
+			.replace(/symbolName="[^"]+"/g, '')
+			.replace(/jQuery[0-9]+="[^"]+"/g, '')
+			.replace(/url\([^#]+#/g, 'url(#')
+			.replace(/<svg /, '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ')
+			.replace(/ (NS[0-9]+\:)?href=/g, ' xlink:href=') // #3567
+			.replace(/\n/, ' ')
+			// Any HTML added to the container after the SVG (#894)
+			.replace(/<\/svg>.*?$/, '</svg>') 
+			// Batik doesn't support rgba fills and strokes (#3095)
+			.replace(/(fill|stroke)="rgba\(([ 0-9]+,[ 0-9]+,[ 0-9]+),([ 0-9\.]+)\)"/g, '$1="rgb($2)" $1-opacity="$3"')
+			/* This fails in IE < 8
+			.replace(/([0-9]+)\.([0-9]+)/g, function(s1, s2, s3) { // round off to save weight
+				return s2 +'.'+ s3[0];
+			})*/
+
+			// Replace HTML entities, issue #347
+			.replace(/&nbsp;/g, '\u00A0') // no-break space
+			.replace(/&shy;/g,  '\u00AD') // soft hyphen
+
+			// IE specific
+			.replace(/<IMG /g, '<image ')
+			.replace(/<(\/?)TITLE>/g, '<$1title>')
+			.replace(/height=([^" ]+)/g, 'height="$1"')
+			.replace(/width=([^" ]+)/g, 'width="$1"')
+			.replace(/hc-svg-href="([^"]+)">/g, 'xlink:href="$1"/>')
+			.replace(/ id=([^" >]+)/g, ' id="$1"') // #4003
+			.replace(/class=([^" >]+)/g, 'class="$1"')
+			.replace(/ transform /g, ' ')
+			.replace(/:(path|rect)/g, '$1')
+			.replace(/style="([^"]+)"/g, function (s) {
+				return s.toLowerCase();
+			});
+	},
 
 	/**
 	 * Return an SVG representation of the chart
@@ -222,7 +266,7 @@ extend(Chart.prototype, {
 			width: chart.chartWidth + PX,
 			height: chart.chartHeight + PX
 		}, doc.body);
-		
+
 		// get the source size
 		cssWidth = chart.renderTo.style.width;
 		cssHeight = chart.renderTo.style.height;
@@ -244,12 +288,14 @@ extend(Chart.prototype, {
 			height: sourceHeight
 		});
 		options.exporting.enabled = false; // hide buttons in print
-		
+		delete options.data; // #3004
+
 		// prepare for replicating the chart
 		options.series = [];
 		each(chart.series, function (serie) {
 			seriesOptions = merge(serie.options, {
 				animation: false, // turn off animation
+				enableMouseTracking: false,
 				showCheckbox: false,
 				visible: serie.visible
 			});
@@ -258,6 +304,15 @@ extend(Chart.prototype, {
 				options.series.push(seriesOptions);
 			}
 		});
+
+		// Axis options must be merged in one by one, since it may be an array or an object (#2022, #3900)
+		if (additionalOptions) {
+			each(['xAxis', 'yAxis'], function (axisType) {
+				each(splat(additionalOptions[axisType]), function (axisOptions, i) {
+					options[axisType][i] = merge(options[axisType][i], axisOptions);
+				});
+			});
+		}
 
 		// generate the chart copy
 		chartCopy = new Highcharts.Chart(options, chart.callback);
@@ -285,37 +340,7 @@ extend(Chart.prototype, {
 		discardElement(sandbox);
 
 		// sanitize
-		svg = svg
-			.replace(/zIndex="[^"]+"/g, '')
-			.replace(/isShadow="[^"]+"/g, '')
-			.replace(/symbolName="[^"]+"/g, '')
-			.replace(/jQuery[0-9]+="[^"]+"/g, '')
-			.replace(/url\([^#]+#/g, 'url(#')
-			.replace(/<svg /, '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ')
-			.replace(/ href=/g, ' xlink:href=')
-			.replace(/\n/, ' ')
-			.replace(/<\/svg>.*?$/, '</svg>') // any HTML added to the container after the SVG (#894)
-			/* This fails in IE < 8
-			.replace(/([0-9]+)\.([0-9]+)/g, function(s1, s2, s3) { // round off to save weight
-				return s2 +'.'+ s3[0];
-			})*/
-
-			// Replace HTML entities, issue #347
-			.replace(/&nbsp;/g, '\u00A0') // no-break space
-			.replace(/&shy;/g,  '\u00AD') // soft hyphen
-
-			// IE specific
-			.replace(/<IMG /g, '<image ')
-			.replace(/height=([^" ]+)/g, 'height="$1"')
-			.replace(/width=([^" ]+)/g, 'width="$1"')
-			.replace(/hc-svg-href="([^"]+)">/g, 'xlink:href="$1"/>')
-			.replace(/id=([^" >]+)/g, 'id="$1"')
-			.replace(/class=([^" >]+)/g, 'class="$1"')
-			.replace(/ transform /g, ' ')
-			.replace(/:(path|rect)/g, '$1')
-			.replace(/style="([^"]+)"/g, function (s) {
-				return s.toLowerCase();
-			});
+		svg = this.sanitizeSVG(svg);
 
 		// IE9 beta bugs with innerHTML. Test again with final IE9.
 		svg = svg.replace(/(url\(#highcharts-[0-9]+)&quot;/g, '$1')
@@ -324,31 +349,34 @@ extend(Chart.prototype, {
 		return svg;
 	},
 
+	getSVGForExport: function (options, chartOptions) {
+		var chartExportingOptions = this.options.exporting;
+
+		return this.getSVG(merge(
+			{ chart: { borderRadius: 0 } },
+			chartExportingOptions.chartOptions,
+			chartOptions,
+			{
+				exporting: {
+					sourceWidth: (options && options.sourceWidth) || chartExportingOptions.sourceWidth,
+					sourceHeight: (options && options.sourceHeight) || chartExportingOptions.sourceHeight
+				}
+			}
+		));
+	},
+
 	/**
 	 * Submit the SVG representation of the chart to the server
-	 * @param {Object} options Exporting options. Possible members are url, type and width.
+	 * @param {Object} options Exporting options. Possible members are url, type, width and formAttributes.
 	 * @param {Object} chartOptions Additional chart options for the SVG representation of the chart
 	 */
 	exportChart: function (options, chartOptions) {
-		options = options || {};
 		
-		var chart = this,
-			chartExportingOptions = chart.options.exporting,
-			svg = chart.getSVG(merge(
-				{ chart: { borderRadius: 0 } },
-				chartExportingOptions.chartOptions,
-				chartOptions, 
-				{
-					exporting: {
-						sourceWidth: options.sourceWidth || chartExportingOptions.sourceWidth,
-						sourceHeight: options.sourceHeight || chartExportingOptions.sourceHeight
-					}
-				}
-			));
+		var svg = this.getSVGForExport(options, chartOptions);
 
 		// merge the options
-		options = merge(chart.options.exporting, options);
-		
+		options = merge(this.options.exporting, options);
+
 		// do the post
 		Highcharts.post(options.url, {
 			filename: options.filename || 'chart',
@@ -356,10 +384,10 @@ extend(Chart.prototype, {
 			width: options.width || 0, // IE8 fails to post undefined correctly, so use 0
 			scale: options.scale || 2,
 			svg: svg
-		});
+		}, options.formAttributes);
 
 	},
-	
+
 	/**
 	 * Print the chart
 	 */
@@ -377,6 +405,8 @@ extend(Chart.prototype, {
 		}
 
 		chart.isPrinting = true;
+
+		fireEvent(chart, 'beforePrint');
 
 		// hide all body content
 		each(childNodes, function (node, i) {
@@ -408,6 +438,8 @@ extend(Chart.prototype, {
 
 			chart.isPrinting = false;
 
+			fireEvent(chart, 'afterPrint');
+
 		}, 1000);
 
 	},
@@ -435,7 +467,12 @@ extend(Chart.prototype, {
 			innerMenu,
 			hide,
 			hideTimer,
-			menuStyle;
+			menuStyle,
+			docMouseUpHandler = function (e) {
+				if (!chart.pointer.inClass(e.target, className)) {
+					hide();
+				}
+			};
 
 		// create the menu only the first time
 		if (!menu) {
@@ -472,18 +509,19 @@ extend(Chart.prototype, {
 			addEvent(menu, 'mouseenter', function () {
 				clearTimeout(hideTimer);
 			});
-			// Hide it on clicking or touching outside the menu (#2258, #2335)
-			addEvent(document, 'mouseup', function (e) {
-				if (!chart.pointer.inClass(e.target, className)) {
-					hide();
-				}
+
+
+			// Hide it on clicking or touching outside the menu (#2258, #2335, #2407)
+			addEvent(document, 'mouseup', docMouseUpHandler);
+			addEvent(chart, 'destroy', function () {
+				removeEvent(document, 'mouseup', docMouseUpHandler);
 			});
 
 
 			// create the items
 			each(items, function (item) {
 				if (item) {
-					var element = item.separator ? 
+					var element = item.separator ?
 						createElement('hr', null, null, innerMenu) :
 						createElement(DIV, {
 							onmouseover: function () {
@@ -494,7 +532,9 @@ extend(Chart.prototype, {
 							},
 							onclick: function () {
 								hide();
-								item.onclick.apply(chart, arguments);
+								if (item.onclick) {
+									item.onclick.apply(chart, arguments);
+								}
 							},
 							innerHTML: item.text || chart.options.lang[item.textKey]
 						}, extend({
@@ -580,11 +620,11 @@ extend(Chart.prototype, {
 		} else if (menuItems) {
 			callback = function () {
 				chart.contextMenu(
-					button.menuClassName, 
-					menuItems, 
-					button.translateX, 
-					button.translateY, 
-					button.width, 
+					button.menuClassName,
+					menuItems,
+					button.translateX,
+					button.translateY,
+					button.width,
 					button.height,
 					button
 				);
@@ -595,7 +635,7 @@ extend(Chart.prototype, {
 
 		if (btnOptions.text && btnOptions.symbol) {
 			attr.paddingLeft = Highcharts.pick(attr.paddingLeft, 25);
-		
+
 		} else if (!btnOptions.text) {
 			extend(attr, {
 				width: btnOptions.width,
@@ -616,7 +656,7 @@ extend(Chart.prototype, {
 					btnOptions.symbol,
 					btnOptions.symbolX - (symbolSize / 2),
 					btnOptions.symbolY - (symbolSize / 2),
-					symbolSize,				
+					symbolSize,
 					symbolSize
 				)
 				.attr(extend(symbolAttr, {
@@ -648,7 +688,7 @@ extend(Chart.prototype, {
 		// Destroy the extra buttons added
 		for (i = 0; i < chart.exportSVGElements.length; i++) {
 			elem = chart.exportSVGElements[i];
-			
+
 			// Destroy and null the svg/vml elements
 			if (elem) { // #1822
 				elem.onclick = elem.ontouchstart = null;
