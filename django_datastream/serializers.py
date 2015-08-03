@@ -1,3 +1,4 @@
+import datetime
 import itertools
 
 from django.utils import datetime_safe, feedgenerator, timezone
@@ -13,9 +14,6 @@ class DatastreamSerializer(serializers.Serializer):
     def __init__(self, *args, **kwargs):
         # We first call super __init__, but we mostly override everything.
         super(DatastreamSerializer, self).__init__(*args, **kwargs)
-
-        # Force RFC-2822 because it is the only one which is widely supported in JavaScript and preserves timezones.
-        self.datetime_formatting = 'rfc-2822'
 
         # With our custom serialization in to_simple we support only JSON.
         # JSONP is an extra. We could make JSONP optional, too.
@@ -47,14 +45,25 @@ class DatastreamSerializer(serializers.Serializer):
 
         return super(DatastreamSerializer, self).to_simple(data, options)
 
-    # We fix RFC 2822 serialization
-    # See https://github.com/toastdriven/django-tastypie/pull/656
-
+    # We want to keep timezone information (Tastypie removes it).
     def format_datetime(self, data):
-        if self.datetime_formatting != 'rfc-2822':
-            return super(DatastreamSerializer, self).format_datetime(data)
+        data = self._make_aware(data)
 
-        return feedgenerator.rfc2822_date(data)
+        if self.datetime_formatting == 'rfc-2822':
+            # We fix RFC 2822 serialization
+            # See https://github.com/toastdriven/django-tastypie/pull/656
+            return feedgenerator.rfc2822_date(data)
+        if self.datetime_formatting == 'iso-8601-strict':
+            # Remove microseconds to strictly adhere to ISO-8601.
+            data = data - datetime.timedelta(microseconds=data.microsecond)
+
+        iso_datetime = data.isoformat()
+
+        # Can we serialize into less bytes?
+        if iso_datetime.endswith('+00:00'):
+            iso_datetime = iso_datetime[:-6] + 'Z'
+
+        return iso_datetime
 
     def format_date(self, data):
         if self.datetime_formatting != 'rfc-2822':
@@ -69,7 +78,15 @@ class DatastreamSerializer(serializers.Serializer):
         month = months[date.month - 1]
         return date.strftime('%%d %s %%Y' % month)
 
+    def _make_aware(self, data):
+        if timezone.is_naive(data):
+            return timezone.make_aware(data, timezone.utc)
+
+        return data
+
     def format_time(self, data):
+        data = self._make_aware(data)
+
         if self.datetime_formatting != 'rfc-2822':
             return super(DatastreamSerializer, self).format_time(data)
 

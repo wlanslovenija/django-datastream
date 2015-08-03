@@ -36,8 +36,5 @@ Suggested settings are::
         'tz_aware': USE_TZ,
     }
 
-    # We use RFC 2822 for better parsing in JavaScript and time-zone support
-    TASTYPIE_DATETIME_FORMATTING = 'rfc-2822'
-
     # JSONP support as well
     TASTYPIE_DEFAULT_FORMATS = ('json', 'jsonp', 'xml')

@@ -3,13 +3,12 @@ import collections
 import datetime
 import decimal
 import os
-import rfc822
 import sys
 import unittest
 import urllib
 
 from django.core import management
-from django.utils import timezone, translation
+from django.utils import dateparse, timezone, translation
 
 import ujson
 
@@ -54,18 +53,6 @@ else:
         return FixedOffset(offset, name)
 
 
-# From Python 3.3 email.utils.parsedate_to_datetime.
-def parsedate_to_datetime(data):
-    if not data:
-        return None
-    dtuple = rfc822.parsedate_tz(data)
-    tz = dtuple[-1]
-    dtuple = dtuple[:-1]
-    if tz is None:
-        return datetime.datetime(*dtuple[:6])
-    return datetime.datetime(*dtuple[:6], tzinfo=get_fixed_timezone(datetime.timedelta(seconds=tz)))
-
-
 class BasicTest(test_runner.ResourceTestCase):
     @classmethod
     def setUpClass(cls):
@@ -97,9 +84,9 @@ class BasicTest(test_runner.ResourceTestCase):
         for datapoint in datapoints:
             if isinstance(datapoint['t'], collections.Mapping):
                 for key, value in datapoint['t'].iteritems():
-                    datapoint['t'][key] = parsedate_to_datetime(value).utctimetuple()
+                    datapoint['t'][key] = dateparse.parse_datetime(value).utctimetuple()
             else:
-                datapoint['t'] = parsedate_to_datetime(datapoint['t']).utctimetuple()
+                datapoint['t'] = dateparse.parse_datetime(datapoint['t']).utctimetuple()
 
         stream_datapoints = list(stream_datapoints)
         for datapoint in stream_datapoints:
@@ -133,7 +120,7 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertHttpMethodNotAllowed(self.api_client.delete(stream_uri, format='json'))
 
     def test_get_list_all(self):
-        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+        serializer = serializers.DatastreamSerializer()
 
         data = self.get_list(
             'stream',
@@ -314,7 +301,7 @@ class BasicTest(test_runner.ResourceTestCase):
         self.assertEqual(schema, data)
 
     def test_get_stream(self):
-        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+        serializer = serializers.DatastreamSerializer()
 
         # Numeric, nominal, and graph streams.
         for i in (0, 3, 4):
@@ -363,7 +350,7 @@ class BasicTest(test_runner.ResourceTestCase):
                                     u'end': None if not end or exclusive else end_string,
                                     u'reverse': reverse,
                                     u'end_exclusive': end_string if end and exclusive else None,
-                                    u'start': u'Mon, 01 Jan 0001 00:00:00 -0000',
+                                    u'start': u'0001-01-01T00:00:00Z',
                                     u'granularity': u'seconds',
                                     u'time_downsamplers': None,
                                     u'start_exclusive': None,
@@ -421,7 +408,7 @@ class BasicTest(test_runner.ResourceTestCase):
         finally:
             datastream.backend._time_offset = prev
 
-        serializer = serializers.DatastreamSerializer(datetime_formatting='rfc-2822')
+        serializer = serializers.DatastreamSerializer()
 
         middle_time = calendar.timegm((stream.earliest_datapoint + (stream.latest_datapoint - stream.earliest_datapoint) / 2).utctimetuple())
         start_time = calendar.timegm(stream.earliest_datapoint.utctimetuple())
@@ -499,7 +486,7 @@ class BasicTest(test_runner.ResourceTestCase):
                                             u'end': None,
                                             u'reverse': reverse,
                                             u'end_exclusive': None,
-                                            u'start': u'Mon, 01 Jan 0001 00:00:00 -0000' if not start else start_string if not exclusive else None,
+                                            u'start': u'0001-01-01T00:00:00Z' if not start else start_string if not exclusive else None,
                                             u'granularity': u'10seconds',
                                             u'time_downsamplers': time_downsampler,
                                             u'start_exclusive': start_string if start and exclusive else None,
