@@ -11,20 +11,11 @@ import datastream
 
 
 class DatastreamSerializer(serializers.Serializer):
-    def __init__(self, *args, **kwargs):
-        # We first call super __init__, but we mostly override everything.
-        super(DatastreamSerializer, self).__init__(*args, **kwargs)
-
-        # With our custom serialization in to_simple we support only JSON.
-        # JSONP is an extra. We could make JSONP optional, too.
-        self.formats = ('json', 'jsonp')
-
-        self.supported_formats = []
-        for f in self.formats:
-            self.supported_formats.append(self.content_types[f])
-
     def to_json(self, data, options=None):
         options = options or {}
+        # We set options so that we know in to_simple that we are calling it from to_json and not
+        # from somewhere else, so that we know that we can use __json__ attribute, if it exists.
+        options['to_json'] = True
         data = self.to_simple(data, options)
         return ujson.dumps(data, ensure_ascii=False)
 
@@ -37,7 +28,7 @@ class DatastreamSerializer(serializers.Serializer):
         # included in the output. This can speedup serialization
         # when data is already backed by JSON content.
         # See https://github.com/esnme/ultrajson/pull/157
-        if hasattr(data, '__json__'):
+        if options.get('to_json', False) and hasattr(data, '__json__'):
             return data
 
         if isinstance(data, datastream.Datapoints):

@@ -583,7 +583,3 @@ class BasicTest(test_runner.ResourceTestCase):
 
             self.assertEqual('01:05:00 +0000', serializer.format_time(date))
             self.assertNotEqual('01:05:00 +0000', tastypie_serializer.format_time(date))
-
-    def test_xml(self):
-        # Even if you ask for XML, you should get JSON.
-        self.assertValidJSONResponse(self.api_client.get(self.resource_list_uri('stream'), format='xml', data={}))

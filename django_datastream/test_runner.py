@@ -51,11 +51,15 @@ class ResourceTestCase(test.ResourceTestCase):
         return self.get_uri(self.resource_detail_uri(resource_name, pk), **kwargs)
 
     def get_uri(self, uri, **kwargs):
-        kwargs['format'] = 'json'
+        if 'format' not in kwargs:
+            kwargs['format'] = 'json'
 
         response = self.api_client.get(uri, data=kwargs)
 
-        self.assertValidJSONResponse(response)
+        if kwargs['format'] == 'json':
+            self.assertValidJSONResponse(response)
+        if kwargs['format'] == 'xml':
+            self.assertValidXMLResponse(response)
 
         return self.deserialize(response)
 
