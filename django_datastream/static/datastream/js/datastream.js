@@ -311,8 +311,8 @@
             },
             'legend': {
                 'enabled': true,
-                'verticalAlign': 'top',
-                'floating': true,
+                'verticalAlign': 'bottom',
+                'floating': false,
                 'padding': 5
             },
             'rangeSelector': {
