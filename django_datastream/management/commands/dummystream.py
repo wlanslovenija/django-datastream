@@ -198,9 +198,8 @@ class Command(base.BaseCommand):
                         'hidden': True if typ is 'graph' else False,
                         'value_downsamplers': visualization_value_downsamplers,
                         'time_downsamplers': ['mean'],
-                        # A special case just for demo purposes. We set just minimum so that
-                        # we can easier demonstrate changing of Y axis.
-                        'minimum': domain_range[0] if domain_range[0] == 0 else None
+                        'minimum': domain_range[0] if value_type == 'numeric' else None,
+                        'maximum': domain_range[1] if value_type == 'numeric' else None,
                     },
                 },
                 downsamplers,
