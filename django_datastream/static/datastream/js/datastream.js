@@ -266,6 +266,7 @@
         self.streamManager = streamManager;
 
         self.streams = {};
+        self.yAxis = [];
 
         // It will be populated later on when initialized.
         self.highcharts = null;
@@ -434,6 +435,39 @@
         });
     };
 
+    Chart.prototype.getYAxis = function (stream) {
+        var self = this;
+
+        var title = [stream.tags.unit_description || "", stream.tags.unit ? "[" + stream.tags.unit + "]" : ""].join(" ");
+        var min = stream.tags.visualization.minimum;
+        var max = stream.tags.visualization.maximum;
+
+         var yAxis;
+
+        for (var i = 0; i < self.yAxis.length; i++) {
+            yAxis = self.yAxis[i];
+            // Using == and not === to allow null to be equal to undefined.
+            if (yAxis.options.title.text == title && yAxis.options.min == min && yAxis.options.max == max) {
+                return yAxis;
+            }
+        }
+
+        self.highcharts.addAxis({
+            'id': 'y-axis-' + stream.id,
+            'title': {
+                'text': title
+            },
+            'showEmpty': false,
+            'min': min,
+            'max': max
+        });
+        yAxis = self.highcharts.get('y-axis-' + stream.id);
+
+        self.yAxis.push(yAxis);
+
+        return yAxis;
+    };
+
     Chart.prototype.renderInitialData = function (callback) {
         var self = this;
 
@@ -446,16 +480,8 @@
             _.each(datapoints, function (streamDatapoints, i) {
                 var stream = streamDatapoints.stream;
 
-                self.highcharts.addAxis({
-                    'id': 'y-axis-' + stream.id,
-                    'title': {
-                        'text': [stream.tags.unit_description || "", stream.tags.unit ? "[" + stream.tags.unit + "]" : ""].join(" ")
-                    },
-                    'showEmpty': false,
-                    'min': stream.tags.visualization.minimum,
-                    'max': stream.tags.visualization.maximum
-                });
-                var yAxis = self.highcharts.get('y-axis-' + stream.id);
+                var yAxis = self.getYAxis(stream);
+
                 var firstSeries = null;
 
                 // TODO: We should probably deduplicate code here.
