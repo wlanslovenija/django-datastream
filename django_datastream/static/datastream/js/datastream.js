@@ -304,6 +304,9 @@
                     'id': 'navigator',
                     // We will add our own series on top of this one and leave this one empty.
                     'data': []
+                },
+                'yAxis': {
+                    'showRects': false
                 }
             },
             'scrollbar': {
@@ -459,7 +462,10 @@
             },
             'showEmpty': false,
             'min': min,
-            'max': max
+            'max': max,
+            'showRects': true,
+            'showRectsX': -17,
+            'showRectsY': 5
         });
         yAxis = self.highcharts.get('y-axis-' + stream.id);
 
@@ -494,6 +500,7 @@
                         'yAxis': yAxis.options.id,
                         'type': rangeType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
+                        'showRects': firstSeries ? true : false, // We want rect to be shown only for the first series (so that each color is shown only once).
                         'lineWidth': 0,
                         'fillOpacity': 0.3,
                         'tooltip': {
@@ -516,8 +523,6 @@
                         'data': streamDatapoints.range[j]
                     });
                     firstSeries = firstSeries || s;
-                    // Match yAxis title color with series color.
-                    yAxis.axisTitle.css({'color': firstSeries.color});
                 });
                 _.each(stream._mainTypes, function (mainType, j) {
                     var s = self.highcharts.addSeries({
@@ -528,6 +533,7 @@
                         'yAxis': yAxis.options.id,
                         'type': mainType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
+                        'showRects': firstSeries ? true : false, // We want rect to be shown only for the first series (so that each color is shown only once).
                         'tooltip': {
                             // TODO: Should be based on mainType.
                             'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
@@ -548,8 +554,6 @@
                         'data': streamDatapoints.main[j]
                     });
                     firstSeries = firstSeries || s;
-                    // Match yAxis title color with series color.
-                    yAxis.axisTitle.css({'color': firstSeries.color});
                 });
                 var navigator = self.highcharts.get('navigator');
                 self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
