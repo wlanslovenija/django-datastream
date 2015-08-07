@@ -35,12 +35,18 @@
         showRects = (yAxis.options.showRects === undefined) ? true : yAxis.options.showRects;
 
       if (showRects) {
+        var skipped = 0;
         for (var i = 0; i < yAxis.series.length; i++) {
+          if (!(yAxis.series[i].options.showRects === undefined || yAxis.series[i].options.showRects)) {
+            skipped++;
+            continue;
+          }
+
           if (yAxis.series[i].visible) {
             rect.x = yAxis.left + yAxis.offset;
             rect.x = (opposite) ? rect.x + yAxis.width : rect.x - rect.width;
 
-            rect.y = yAxis.top + yAxis.height + baselineOffset + itemMarginTop * (i + 1);
+            rect.y = yAxis.top + yAxis.height + baselineOffset + itemMarginTop * (i - skipped + 1);
 
             renderer.rect(rect.x,
               rect.y,
