@@ -43,10 +43,10 @@
           }
 
           if (yAxis.series[i].visible) {
-            rect.x = yAxis.left + yAxis.offset;
+            rect.x = yAxis.left + yAxis.offset + (yAxis.options.showRectsX || 0);
             rect.x = (opposite) ? rect.x + yAxis.width : rect.x - rect.width;
 
-            rect.y = yAxis.top + yAxis.height + baselineOffset + itemMarginTop * (i - skipped + 1);
+            rect.y = yAxis.top + yAxis.height + baselineOffset + itemMarginTop * (i - skipped + 1) + (yAxis.options.showRectsY || 0);
 
             renderer.rect(rect.x,
               rect.y,
