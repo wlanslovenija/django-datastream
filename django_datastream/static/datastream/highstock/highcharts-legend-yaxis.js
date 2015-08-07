@@ -69,7 +69,8 @@
       events = {
         "endResize": chart,
         "hide": series,
-        "show": series
+        "show": series,
+        "addSeries": chart
       },
       redraw = function () {
         group.destroy(); // Destroy the container and free up memory
