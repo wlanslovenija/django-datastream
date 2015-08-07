@@ -438,40 +438,75 @@
         });
     };
 
+    Chart.prototype.getYAxisTitle = function (stream) {
+        return [stream.tags.unit_description || "", stream.tags.unit ? "[" + stream.tags.unit + "]" : ""].join(" ");
+    };
+
     Chart.prototype.getYAxis = function (stream) {
         var self = this;
 
-        var title = [stream.tags.unit_description || "", stream.tags.unit ? "[" + stream.tags.unit + "]" : ""].join(" ");
-        var min = stream.tags.visualization.minimum;
-        var max = stream.tags.visualization.maximum;
+        var title = self.getYAxisTitle(stream);
 
-         var yAxis;
+        return self.highcharts.get('y-axis-' + title);
+    };
 
-        for (var i = 0; i < self.yAxis.length; i++) {
-            yAxis = self.yAxis[i];
-            // Using == and not === to allow null to be equal to undefined.
-            if (yAxis.options.title.text == title && yAxis.options.min == min && yAxis.options.max == max) {
-                return yAxis;
+    Chart.prototype.createYAxis = function (datapoints) {
+        var self = this;
+
+        var units = {};
+
+        _.each(datapoints, function (streamDatapoints, i) {
+            var stream = streamDatapoints.stream;
+
+            var title = self.getYAxisTitle(stream);
+
+            if (!units[title]) {
+                units[title] = {
+                    'min': stream.tags.visualization.minimum,
+                    'max': stream.tags.visualization.maximum
+                }
             }
-        }
+            else {
+                // We use == and not === to allow both null and undefined.
 
-        self.highcharts.addAxis({
-            'id': 'y-axis-' + stream.id,
-            'title': {
-                'text': title
-            },
-            'showEmpty': false,
-            'min': min,
-            'max': max,
-            'showRects': true,
-            'showRectsX': -17,
-            'showRectsY': 5
+                if (units[title].min != null) {
+                    if (stream.tags.visualization.minimum == null) {
+                        units[title].min = null;
+                    }
+                    else if (stream.tags.visualization.minimum < units[title].min) {
+                        units[title].min = stream.tags.visualization.minimum;
+                    }
+                }
+
+                if (units[title].max != null) {
+                    if (stream.tags.visualization.maximum == null) {
+                        units[title].max = null;
+                    }
+                    else if (stream.tags.visualization.maximum < units[title].max) {
+                        units[title].max = stream.tags.visualization.maximum;
+                    }
+                }
+            }
         });
-        yAxis = self.highcharts.get('y-axis-' + stream.id);
 
-        self.yAxis.push(yAxis);
+        for (var title in units) {
+            if (!units.hasOwnProperty(title)) continue;
 
-        return yAxis;
+            var minMax = units[title];
+
+            self.highcharts.addAxis({
+                'id': 'y-axis-' + title,
+                'title': {
+                    'text': title
+                },
+                'showEmpty': false,
+                'min': minMax.min,
+                'max': minMax.max,
+                'showRects': true,
+                'showRectsX': -17,
+                'showRectsY': 5
+            });
+        }
     };
 
     Chart.prototype.renderInitialData = function (callback) {
@@ -482,6 +517,8 @@
                 callback(error);
                 return;
             }
+
+            self.createYAxis(datapoints);
 
             _.each(datapoints, function (streamDatapoints, i) {
                 var stream = streamDatapoints.stream;
