@@ -46,7 +46,7 @@
         });
     }
 
-    function firstDefined(obj) {
+    function firstDefined(obj /*, args */) {
         for (var i = 1; i < arguments.length; i++) {
             if (!_.isUndefined(obj[arguments[i]])) {
                 return obj[arguments[i]];
@@ -118,7 +118,7 @@
         self._rangeTypes = [];
 
         if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'max'])) {
-            self._mainTypes = [{'type': 'spline', 'keys': ['u']}, {'type': 'spline', 'keys': ['l']}];
+            self._mainTypes = [{'type': 'arearange', 'keys': ['l', 'u']}];
         }
         else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean', 'max'])) {
             self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
@@ -132,6 +132,10 @@
             self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
             self._rangeTypes = [{'type': 'arearange', 'keys': ['l', 'm']}];
         }
+        else if (self.tags.visualization.type === 'stack' && setsEqual(self.tags.visualization.value_downsamplers, ['mean'])) {
+            self._mainTypes = [{'type': 'areaspline', 'keys': ['m'], 'plotOptions': {'area': {'stacking': 'normal'}}}];
+        }
+
         else {
             // TODO: Currently we have only limited support for various combinations.
             console.error("Unsupported combination of type and value downsamplers", self.tags.visualization.type, self.tags.visualization.value_downsamplers);
@@ -588,6 +592,7 @@
                                 //$(this.legendGroup.element).trigger('mouseleave.highlight');
                             }
                         },
+                        'plotOptions': mainType.plotOptions || {},
                         'data': streamDatapoints.main[j]
                     });
                     firstSeries = firstSeries || s;
@@ -664,7 +669,7 @@
                 // All params are already in "next".
                 nextParams = {};
                 callback();
-            }).fail(function () {
+            }).fail(function (/* args */) {
                 callback(arguments);
             });
         }, function (error) {
