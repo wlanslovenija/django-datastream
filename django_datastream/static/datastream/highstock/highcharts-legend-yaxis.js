@@ -79,18 +79,28 @@
         "addSeries": chart
       },
       redraw = function () {
+        removeEvents();
         group.destroy(); // Destroy the container and free up memory
         group = chart.renderer.g("yaxis-group");
         positionRects(chart, group);
+        addEvents();
+      },
+      addEvents = function () {
+        for (var ev in events) {
+          if (events.hasOwnProperty(ev)) {
+            H.addEvent(events[ev], ev, redraw);
+          }
+        }
+      },
+      removeEvents = function () {
+        for (var ev in events) {
+          if (events.hasOwnProperty(ev)) {
+            H.removeEvent(events[ev], ev, redraw);
+          }
+        }
       };
 
-    positionRects(chart, group);
-
-    for (var ev in events) {
-      if (events.hasOwnProperty(ev)) {
-        H.addEvent(events[ev], ev, redraw);
-      }
-    }
+    redraw()
 
   });
 }(Highcharts));
