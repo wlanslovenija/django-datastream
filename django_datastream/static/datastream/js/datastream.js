@@ -132,10 +132,16 @@
             self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
             self._rangeTypes = [{'type': 'arearange', 'keys': ['l', 'm']}];
         }
-        else if (self.tags.visualization.type === 'stack' && setsEqual(self.tags.visualization.value_downsamplers, ['mean'])) {
-            self._mainTypes = [{'type': 'areaspline', 'keys': ['m'], 'plotOptions': {'area': {'stacking': 'normal'}}}];
+        // If no other line type matched, then we just use the mean value.
+        else if (self.tags.visualization.type === 'line' && _.contains(self.tags.visualization.value_downsamplers, 'mean')) {
+            self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
         }
-
+        // For the stack type we use only the mean value.
+        // TODO: How to visualize min and max?
+        else if (self.tags.visualization.type === 'stack' && _.contains(self.tags.visualization.value_downsamplers, 'mean')) {
+            // areaspline type is currently used only in the stacking mode, so its stacking mode is enabled for all charts.
+            self._mainTypes = [{'type': 'areaspline', 'keys': ['m']}];
+        }
         else {
             // TODO: Currently we have only limited support for various combinations.
             console.error("Unsupported combination of type and value downsamplers", self.tags.visualization.type, self.tags.visualization.value_downsamplers);
@@ -375,6 +381,10 @@
                     'dataGrouping': {
                         'enabled': false
                     }
+                },
+                // areaspline type is currently used only in the stacking mode, so its stacking mode is enabled for all charts.
+                areaspline: {
+                    stacking: 'normal'
                 }
             },
             'series': []
