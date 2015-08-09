@@ -559,6 +559,7 @@
                             'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
                             'valueDecimals': 3
                         },
+                        'visible': !stream.tags.visualization.hidden,
                         'selected': firstSeries ? false : true, // By default the first stream in the legend is selected/highlighted.
                         'events': {
                             'legendItemClick': firstSeries ? null : function (e) {
@@ -590,6 +591,7 @@
                             'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
                             'valueDecimals': 3
                         },
+                        'visible': !stream.tags.visualization.hidden,
                         'selected': firstSeries ? false : true, // By default the first stream in the legend is selected/highlighted.
                         'events': {
                             'legendItemClick': firstSeries ? null : function (e) {
