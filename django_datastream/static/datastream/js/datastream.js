@@ -592,7 +592,6 @@
                                 //$(this.legendGroup.element).trigger('mouseleave.highlight');
                             }
                         },
-                        'plotOptions': mainType.plotOptions || {},
                         'data': streamDatapoints.main[j]
                     });
                     firstSeries = firstSeries || s;
