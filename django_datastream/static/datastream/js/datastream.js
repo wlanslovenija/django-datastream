@@ -687,37 +687,40 @@
 
         assert(!_.has(self.streams, stream.id));
 
-        if (stream.tags && stream.tags.visualization && !stream.tags.visualization.hidden) {
-            try {
-                var streamObject = new Stream(stream, self);
-                self.streams[stream.id] = streamObject;
-            }
-            catch (error) {
-                console.error("Stream '" + stream.id + "' creation error", error);
-                return;
-            }
+        // Sanity check. Streams to visualize should have visualization metadata.
+        if (!(stream.tags && stream.tags.visualization)) {
+            return;
+        }
 
-            if (self.extremes) {
-                if (streamObject._extremes.start !== null && streamObject._extremes.start < self.extremes.start) {
-                    self.extremes.start = streamObject._extremes.start;
-                }
-                if (streamObject._extremes.end !== null && streamObject._extremes.end > self.extremes.end) {
-                    self.extremes.end = streamObject._extremes.end;
-                }
-            }
-            else {
-                self.extremes = _.clone(streamObject._extremes);
-            }
+        try {
+            var streamObject = new Stream(stream, self);
+            self.streams[stream.id] = streamObject;
+        }
+        catch (error) {
+            console.error("Stream '" + stream.id + "' creation error", error);
+            return;
+        }
 
-            if (self.highestGranularity) {
-                var granularity = getGranularityFromName(streamObject.highest_granularity);
-                if (compareGranularities(granularity, self.highestGranularity) < 0) {
-                    self.highestGranularity = granularity;
-                }
+        if (self.extremes) {
+            if (streamObject._extremes.start !== null && streamObject._extremes.start < self.extremes.start) {
+                self.extremes.start = streamObject._extremes.start;
             }
-            else {
-                self.highestGranularity = getGranularityFromName(streamObject.highest_granularity);
+            if (streamObject._extremes.end !== null && streamObject._extremes.end > self.extremes.end) {
+                self.extremes.end = streamObject._extremes.end;
             }
+        }
+        else {
+            self.extremes = _.clone(streamObject._extremes);
+        }
+
+        if (self.highestGranularity) {
+            var granularity = getGranularityFromName(streamObject.highest_granularity);
+            if (compareGranularities(granularity, self.highestGranularity) < 0) {
+                self.highestGranularity = granularity;
+            }
+        }
+        else {
+            self.highestGranularity = getGranularityFromName(streamObject.highest_granularity);
         }
     };
 
