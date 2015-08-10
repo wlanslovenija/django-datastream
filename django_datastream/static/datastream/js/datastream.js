@@ -5,7 +5,12 @@
      */
     (function (Highcharts) {
         function highlightOn(allSeries, currentSeries) {
-            return function (e) {
+            return function (event) {
+                // Don't do anything if current series is not visible.
+                if (!currentSeries.visible) {
+                    return;
+                }
+
                 _.each(allSeries, function (series, i) {
                     if (i === 0) {
                         // We skip (empty) navigator series.
@@ -24,7 +29,9 @@
         }
 
         function highlightOff(allSeries, currentSeries) {
-            return function (e) {
+            return function (event) {
+                // Even if current series is not visible, we still just turn highlighting off, just in case.
+
                 _.each(allSeries, function (series, i) {
                     if (i === 0) {
                         // We skip (empty) navigator series.
