@@ -1,5 +1,60 @@
 (function ($) {
 
+    /**
+     * Plugin for highlighting. It sets a lower opacity for series other than the one that is hovered over.
+     */
+    (function (Highcharts) {
+        function highlightOn(allSeries, currentSeries) {
+            return function (e) {
+                _.each(allSeries, function (series, i) {
+                    if (i === 0) {
+                        // We skip (empty) navigator series.
+                        assert.equal(series.data.length, 0);
+                        return;
+                    }
+
+                    var current = series === currentSeries || series.linkedParent === currentSeries || series.options.streamId === currentSeries.options.streamId;
+                    _.each(['group', 'markerGroup'], function (group, j) {
+                        if (series[group]) {
+                            series[group].attr('opacity', current ? 1.0 : 0.25);
+                        }
+                    });
+                });
+            };
+        }
+
+        function highlightOff(allSeries, currentSeries) {
+            return function (e) {
+                _.each(allSeries, function (series, i) {
+                    if (i === 0) {
+                        // We skip (empty) navigator series.
+                        assert.equal(series.data.length, 0);
+                        return;
+                    }
+
+                    _.each(['group', 'markerGroup'], function (group, j) {
+                        if (series[group]) {
+                            series[group].attr('opacity', 1.0);
+                        }
+                    });
+                });
+            };
+        }
+
+        // Hovering over the legend
+        Highcharts.wrap(Highcharts.Legend.prototype, 'renderItem', function (proceed, currentSeries) {
+            proceed.call(this, currentSeries);
+
+            var allSeries = this.chart.series;
+
+            $(currentSeries.legendGroup.element).off('.highlight').on(
+                'mouseenter.highlight', highlightOn(allSeries, currentSeries)
+            ).on(
+                'mouseleave.highlight', highlightOff(allSeries, currentSeries)
+            );
+        });
+    }(Highcharts));
+
     // The language object is global and it can't be set on each chart initiation. Instead, we have to use
     // Highcharts.setOptions to set it before any chart is initiated.
     Highcharts.setOptions({
@@ -570,18 +625,6 @@
                             'valueDecimals': 3
                         },
                         'visible': !stream.tags.visualization.hidden,
-                        'selected': firstSeries ? false : true, // By default the first stream in the legend is selected/highlighted.
-                        'events': {
-                            'legendItemClick': firstSeries ? null : function (e) {
-                                e.preventDefault();
-
-                                this.select();
-
-                                // We force mouse leave event to immediately set highlights.
-                                // TODO
-                                //$(this.legendGroup.element).trigger('mouseleave.highlight');
-                            }
-                        },
                         'data': streamDatapoints.range[j]
                     });
                     firstSeries = firstSeries || s;
@@ -602,18 +645,6 @@
                             'valueDecimals': 3
                         },
                         'visible': !stream.tags.visualization.hidden,
-                        'selected': firstSeries ? false : true, // By default the first stream in the legend is selected/highlighted.
-                        'events': {
-                            'legendItemClick': firstSeries ? null : function (e) {
-                                e.preventDefault();
-
-                                this.select();
-
-                                // We force mouse leave event to immediately set highlights.
-                                // TODO
-                                //$(this.legendGroup.element).trigger('mouseleave.highlight');
-                            }
-                        },
                         'data': streamDatapoints.main[j]
                     });
                     firstSeries = firstSeries || s;
