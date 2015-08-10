@@ -19,7 +19,7 @@
                     }
 
                     var current = series === currentSeries || series.linkedParent === currentSeries || series.options.streamId === currentSeries.options.streamId;
-                    _.each(['group', 'markerGroup'], function (group, j) {
+                    _.each(['group', 'markerGroup', 'yaxisRect'], function (group, j) {
                         if (series[group]) {
                             series[group].attr('opacity', current ? 1.0 : 0.25);
                         }
@@ -39,7 +39,7 @@
                         return;
                     }
 
-                    _.each(['group', 'markerGroup'], function (group, j) {
+                    _.each(['group', 'markerGroup', 'yaxisRect'], function (group, j) {
                         if (series[group]) {
                             series[group].attr('opacity', 1.0);
                         }
