@@ -1,5 +1,14 @@
 (function ($) {
 
+    // The language object is global and it can't be set on each chart initiation. Instead, we have to use
+    // Highcharts.setOptions to set it before any chart is initiated.
+    Highcharts.setOptions({
+        'lang': {
+            // By default thousands are separated by space. This is pretty confusing.
+            'thousandsSep': ''
+        }
+    });
+
     // TODO: This currently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint.
     var MAX_POINTS_NUMBER = 300;
     // TODO: How much exactly do we want?
