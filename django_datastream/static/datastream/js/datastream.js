@@ -539,6 +539,7 @@
 
                 var yAxis = self.getYAxis(stream);
 
+                // The first series which was already added. If null, the current series being added is the first one.
                 var firstSeries = null;
 
                 // TODO: We should probably deduplicate code here.
@@ -551,7 +552,7 @@
                         'yAxis': yAxis.options.id,
                         'type': rangeType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
-                        'showRects': firstSeries ? true : false, // We want rect to be shown only for the first series (so that each color is shown only once).
+                        'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
                         'lineWidth': 0,
                         'fillOpacity': 0.3,
                         'tooltip': {
@@ -585,7 +586,7 @@
                         'yAxis': yAxis.options.id,
                         'type': mainType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
-                        'showRects': firstSeries ? true : false, // We want rect to be shown only for the first series (so that each color is shown only once).
+                        'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
                         'tooltip': {
                             // TODO: Should be based on mainType.
                             'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
