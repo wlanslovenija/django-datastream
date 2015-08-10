@@ -48,7 +48,7 @@
 
             rect.y = yAxis.top + yAxis.height + baselineOffset + itemMarginTop * (i - skipped + 1) + (yAxis.options.showRectsY || 0);
 
-            renderer.rect(rect.x,
+            yAxis.series[i].yaxisRect = renderer.rect(rect.x,
               rect.y,
               rect.width,
               rect.height,
@@ -81,7 +81,7 @@
       redraw = function () {
         removeEvents();
         group.destroy(); // Destroy the container and free up memory
-        group = chart.renderer.g("yaxis-group");
+        chart.yaxisGroup = group = chart.renderer.g("yaxis-group");
         positionRects(chart, group);
         addEvents();
       },
