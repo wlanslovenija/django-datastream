@@ -768,19 +768,21 @@
                     }, false);
                     firstSeries = firstSeries || s;
                 });
-                var navigator = self.highcharts.get('navigator');
-                self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
-                    'id': 'navigator-y-axis-' + stream.id
-                // Do not redraw.
-                }), false, false);
-                self.highcharts.addSeries(_.extend({}, navigator.options, {
-                    'id': 'navigator-' + stream.id,
-                    'streamId': stream.id, // Our own option.
-                    'yAxis': 'navigator-y-axis-' + stream.id,
-                    'color': firstSeries.color,
-                    'data': streamDatapoints.main[0] || streamDatapoints.range[0]
-                // Do not redraw.
-                }), false);
+                if (streamDatapoints.main[0] || streamDatapoints.range[0]) {
+                    var navigator = self.highcharts.get('navigator');
+                    self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
+                        'id': 'navigator-y-axis-' + stream.id
+                    // Do not redraw.
+                    }), false, false);
+                    self.highcharts.addSeries(_.extend({}, navigator.options, {
+                        'id': 'navigator-' + stream.id,
+                        'streamId': stream.id, // Our own option.
+                        'yAxis': 'navigator-y-axis-' + stream.id,
+                        'color': firstSeries.color,
+                        'data': streamDatapoints.main[0] || streamDatapoints.range[0]
+                    // Do not redraw.
+                    }), false);
+                }
             });
 
             // Without the following range selector is not displayed until first zooming. Also redraw.
