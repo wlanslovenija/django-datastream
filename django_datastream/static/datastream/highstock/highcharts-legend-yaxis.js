@@ -76,7 +76,7 @@
         "endResize": chart,
         "hide": series,
         "show": series,
-        "addSeries": chart
+        "redraw": chart
       },
       redraw = function () {
         removeEvents();
