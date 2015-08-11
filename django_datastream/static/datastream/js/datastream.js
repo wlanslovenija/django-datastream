@@ -621,6 +621,7 @@
         return self.highcharts.get('y-axis-' + title);
     };
 
+    // Does not redraw the chart. Caller should redraw.
     Chart.prototype.createYAxis = function (datapoints) {
         var self = this;
 
@@ -681,7 +682,8 @@
                 'showRects': true,
                 'showRectsX': -17,
                 'showRectsY': 5
-            });
+            // Do not redraw.
+            }, false, false);
         }
     };
 
@@ -724,7 +726,8 @@
                         },
                         'visible': !stream.tags.visualization.hidden,
                         'data': streamDatapoints.range[j]
-                    });
+                    // Do not redraw.
+                    }, false);
                     firstSeries = firstSeries || s;
                 });
                 _.each(stream._mainTypes, function (mainType, j) {
@@ -744,7 +747,8 @@
                         },
                         'visible': !stream.tags.visualization.hidden,
                         'data': streamDatapoints.main[j]
-                    });
+                    // Do not redraw.
+                    }, false);
                     firstSeries = firstSeries || s;
                 });
                 _.each(stream._flagTypes, function (flagType, j) {
@@ -760,23 +764,26 @@
                         'color': 'black', // We force it to black, so that other series automatic color choosing is not interfered with.
                         'shape': 'squarepin',
                         'data': streamDatapoints.flag[j]
-                    });
+                    // Do not redraw.
+                    }, false);
                     firstSeries = firstSeries || s;
                 });
                 var navigator = self.highcharts.get('navigator');
                 self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
                     'id': 'navigator-y-axis-' + stream.id
-                }));
+                // Do not redraw.
+                }), false, false);
                 self.highcharts.addSeries(_.extend({}, navigator.options, {
                     'id': 'navigator-' + stream.id,
                     'streamId': stream.id, // Our own option.
                     'yAxis': 'navigator-y-axis-' + stream.id,
                     'color': firstSeries.color,
                     'data': streamDatapoints.main[0] || streamDatapoints.range[0]
-                }));
+                // Do not redraw.
+                }), false);
             });
 
-            // Without the following range selector is not displayed until first zooming.
+            // Without the following range selector is not displayed until first zooming. Also redraw.
             self.highcharts.xAxis[0].setExtremes(self.streamManager.extremes.start, self.streamManager.extremes.end, true, false, {'reason': 'initial'});
         });
     };
@@ -795,17 +802,21 @@
                 var stream = streamDatapoints.stream;
 
                 for (var j = 0; j < stream._mainTypes.length; j++) {
+                    // Do not redraw.
                     self.highcharts.get('main-' + j + '-' + stream.id).setData(streamDatapoints.main[j], false);
                 }
                 for (var j = 0; j < stream._rangeTypes.length; j++) {
+                    // Do not redraw.
                     self.highcharts.get('range-' + j + '-' + stream.id).setData(streamDatapoints.range[j], false);
                 }
                 for (var j = 0; j < stream._flagTypes.length; j++) {
+                    // Do not redraw.
                     self.highcharts.get('flag-' + j + '-' + stream.id).setData(streamDatapoints.flag[j], false);
                 }
             }
 
-            self.highcharts.redraw(true);
+            // Redraw.
+            self.highcharts.redraw(true, false);
         });
     };
 
@@ -960,7 +971,10 @@
 
         // Initializes all charts.
         async.each(self.charts, function (chart, callback) {
-            chart.initialize(callback);
+            // Run it through the event loop to render UI updates in chunks and not only at the end of everything.
+            setTimeout(function () {
+                chart.initialize(callback);
+            });
         }, function (error) {
             if (error) {
                 console.error("Error initializing charts", error);
@@ -970,7 +984,10 @@
             // We first initialize all, then then start rendering, so that visual space for all graphs
             // is reserved as soon as possible, so that things do not jump around too much anymore.
             async.each(self.charts, function (chart, callback) {
-                chart.renderInitialData(callback);
+                // Run it through the event loop to render UI updates in chunks and not only at the end of everything.
+                setTimeout(function () {
+                    chart.renderInitialData(callback);
+                });
             }, function (error) {
                 if (error) {
                     console.error("Error rendering initial data", error);
@@ -990,7 +1007,10 @@
         }
 
         _.each(self.charts, function (chart, i) {
-            chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'syncing'});
+            // Run it through the event loop to render UI updates in chunks and not only at the end of everything.
+            setTimeout(function () {
+                chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'syncing'});
+            });
         });
     };
 
