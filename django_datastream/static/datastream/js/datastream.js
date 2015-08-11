@@ -163,6 +163,8 @@
 
     // We prefix all dynamic properties with _ to differentiate them from JSON data.
     // We use camelCase for dynamic properties, despite JSON data is using underscore_to_separate_words.
+    // Stream can be with multiple other streams, so the same stream object can be rendered multiple
+    // times in multiple charts.
     function Stream(stream, streamManager) {
         var self = this;
 
@@ -170,48 +172,49 @@
 
         self._streamManager = streamManager;
 
-        // It will be populated later on by the stream manager. Once all stream metadata is read.
-        self._chart = null;
-
         if (_.without(self.tags.visualization.time_downsamplers, 'mean').length) {
             // TODO: Currently we support only mean time downsampler.
             console.error("Unsupported time downsamplers", self.tags.visualization.time_downsamplers);
             throw new Error("Unsupported time downsamplers");
         }
 
-        if (_.without(self.tags.visualization.value_downsamplers, 'min', 'mean', 'max').length) {
-            // TODO: Currently we support only min, mean, and max value downsampler.
+        if (_.without(self.tags.visualization.value_downsamplers, 'min', 'mean', 'max', 'count').length) {
+            // TODO: Currently we support only min, mean, max, and count value downsampler.
             console.error("Unsupported value downsamplers", self.tags.visualization.value_downsamplers);
             throw new Error("Unsupported value downsamplers");
         }
 
         self._mainTypes = [];
         self._rangeTypes = [];
+        self._flagTypes = [];
 
         if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'max'])) {
-            self._mainTypes = [{'type': 'arearange', 'keys': ['l', 'u']}];
+            self._mainTypes = [{'type': 'areasplinerange', 'keys': ['l', 'u'], 'parse': self.parseFloat}];
         }
         else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean', 'max'])) {
-            self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
-            self._rangeTypes = [{'type': 'arearange', 'keys': ['l', 'u']}];
+            self._mainTypes = [{'type': 'spline', 'keys': ['m'], 'parse': self.parseFloat}];
+            self._rangeTypes = [{'type': 'areasplinerange', 'keys': ['l', 'u'], 'parse': self.parseFloat}];
         }
         else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['mean', 'max'])) {
-            self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
-            self._rangeTypes = [{'type': 'arearange', 'keys': ['m', 'u']}];
+            self._mainTypes = [{'type': 'spline', 'keys': ['m'], 'parse': self.parseFloat}];
+            self._rangeTypes = [{'type': 'areasplinerange', 'keys': ['m', 'u'], 'parse': self.parseFloat}];
         }
         else if (self.tags.visualization.type === 'line' && setsEqual(self.tags.visualization.value_downsamplers, ['min', 'mean'])) {
-            self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
-            self._rangeTypes = [{'type': 'arearange', 'keys': ['l', 'm']}];
+            self._mainTypes = [{'type': 'spline', 'keys': ['m'], 'parse': self.parseFloat}];
+            self._rangeTypes = [{'type': 'areasplinerange', 'keys': ['l', 'm'], 'parse': self.parseFloat}];
         }
         // If no other line type matched, then we just use the mean value.
         else if (self.tags.visualization.type === 'line' && _.contains(self.tags.visualization.value_downsamplers, 'mean')) {
-            self._mainTypes = [{'type': 'spline', 'keys': ['m']}];
+            self._mainTypes = [{'type': 'spline', 'keys': ['m'], 'parse': self.parseFloat}];
         }
         // For the stack type we use only the mean value.
         // TODO: How to visualize min and max?
         else if (self.tags.visualization.type === 'stack' && _.contains(self.tags.visualization.value_downsamplers, 'mean')) {
             // areaspline type is currently used only in the stacking mode, so its stacking mode is enabled for all charts.
-            self._mainTypes = [{'type': 'areaspline', 'keys': ['m']}];
+            self._mainTypes = [{'type': 'areaspline', 'keys': ['m'], 'parse': self.parseFloat}];
+        }
+        else if (self.tags.visualization.type === 'event') {
+            self._flagTypes = [{'type': 'flags', 'keys': ['c'], 'parse': self.parseEvent}];
         }
         else {
             // TODO: Currently we have only limited support for various combinations.
@@ -222,13 +225,51 @@
         self._extremes = getExtremeDatapoints(self);
     }
 
+    // Caller makes sure that this is bound to the stream. For flag types, parsing function
+    // is responsible to return an object representing the point from the raw datapoint value.
+    Stream.prototype.parseEvent = function (datapointValue) {
+        var self = this;
+
+        if (_.isObject(datapointValue)) {
+            datapointValue = datapointValue.c;
+        }
+
+        if (datapointValue == null || (!(datapointValue > 0))) {
+            return null;
+        }
+
+        return {
+            'title': self.tags.visualization.label,
+            'text': self.tags.visualization.message
+        }
+    };
+
+    // Caller makes sure that this is bound to the stream. Value is already extracted out of the possible object.
+    Stream.prototype.parseFloat = function (value) {
+        // If value is null or undefined we return null to represent a missing value.
+        // Otherwise parseFloat converts it to NaN which is not processed as a missing value by Highcarts.
+        if (value == null) {
+            return null;
+        }
+        else {
+            return parseFloat(value);
+        }
+    };
+
     Stream.prototype.isWith = function (other) {
         var self = this;
 
+        if (self.id === other.id) return false;
+
         if (!self.tags.visualization.with) return false;
 
-        // TODO: Should we use _.findWhere?
+        // TODO: Should we use _.findWhere?i
         if (!_.isEqual(_.pick(other.tags, _.keys(self.tags.visualization.with)), self.tags.visualization.with)) return false;
+
+        // We can display evets alongside any stream.
+        if (self.tags.visualization.type === 'event' || other.tags.visualization.type === 'event') {
+            return true;
+        }
 
         if (self.tags.visualization.minimum !== other.tags.visualization.minimum || self.tags.visualization.maximum !== other.tags.visualization.maximum || self.tags.visualization.unit !== other.tags.visualization.unit) {
             console.warn("Streams matched, but incompatible Y axis", self, other);
@@ -284,14 +325,15 @@
         range.start -= interval * 0.1;
         range.end += interval * 0.1;
 
-        range.start = parseInt(Math.floor(range.start));
-        range.end = parseInt(Math.ceil(range.end));
+        range.start = parseInt(Math.floor(range.start), 10);
+        range.end = parseInt(Math.ceil(range.end), 10);
 
         return range;
     };
 
     // TODO: We should probably optimize this and not use functions to iterate.
     // TODO: Should we use web workers?
+    // For flag types, parsing function is responsible to return an object representing the point from the rawdatapoint value.
     Stream.prototype.convertDatapoint = function (datapoint) {
         var self = this;
 
@@ -301,17 +343,43 @@
         if (_.isObject(datapoint.v)) {
             return {
                 'main': _.map(self._mainTypes, function (mainType, i) {
-                    return [t].concat(_.map(mainType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
+                    return [t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v[key]);}));
                 }),
                 'range': _.map(self._rangeTypes, function (rangeType, i) {
-                    return [t].concat(_.map(rangeType.keys, function (key, j) {return parseFloat(datapoint.v[key]);}));
+                    return [t].concat(_.map(rangeType.keys, function (key, j) {return rangeType.parse.call(self, datapoint.v[key]);}));
+                }),
+                'flag': _.map(self._flagTypes, function (flagType, i) {
+                    var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
+                    // Using == on purpose.
+                    if (value == null) {
+                        return null;
+                    }
+                    else {
+                        return _.extend({
+                            'x': t
+                        }, value);
+                    }
                 })
             }
         }
         else {
             return {
-                'main': [[t].concat(_.map(self._mainTypes[0].keys, function (key, i) {return parseFloat(datapoint.v);}))],
-                'range': []
+                'main': _.map(self._mainTypes, function (mainType, i) {
+                    return [t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v);}));
+                }),
+                'range': [],
+                'flag': _.map(self._flagTypes, function (flagType, i) {
+                    var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
+                    // Using == on purpose.
+                    if (value == null) {
+                        return null;
+                    }
+                    else {
+                        return _.extend({
+                            'x': t
+                        }, value);
+                    }
+                })
             }
         }
     };
@@ -323,6 +391,7 @@
 
         var main = _.map(self._mainTypes, function (mainType, i) {return [];});
         var range = _.map(self._rangeTypes, function (rangeType, i) {return [];});
+        var flag = _.map(self._flagTypes, function (flagType, i) {return [];});
 
         for (var i = 0; i < datapoints.length; i++) {
             var datapoint = self.convertDatapoint(datapoints[i]);
@@ -333,11 +402,15 @@
             for (var j = 0; j < datapoint.range.length; j++) {
                 range[j].push(datapoint.range[j]);
             }
+            for (var j = 0; j < datapoint.flag.length; j++) {
+                flag[j].push(datapoint.flag[j]);
+            }
         }
 
         return {
             'main': main,
-            'range': range
+            'range': range,
+            'flag': flag
         };
     };
 
@@ -357,10 +430,8 @@
         var self = this;
 
         assert(!_.has(self.streams, stream.id));
-        assert.strictEqual(stream._chart, null);
 
         self.streams[stream.id] = stream;
-        stream._chart = self;
     };
 
     Chart.prototype.initialize = function (callback) {
@@ -524,11 +595,26 @@
     };
 
     Chart.prototype.getYAxisTitle = function (stream) {
-        return [stream.tags.unit_description || "", stream.tags.unit ? "[" + stream.tags.unit + "]" : ""].join(" ");
+        var title = [];
+
+        if (stream.tags.unit_description) {
+            title.push(stream.tags.unit_description);
+        }
+
+        if (stream.tags.unit) {
+            title.push("[" + stream.tags.unit + "]");
+        }
+
+        return title.join(" ");
     };
 
     Chart.prototype.getYAxis = function (stream) {
         var self = this;
+
+        // Event streams do not have y axis.
+        if (stream.tags.visualization.type === 'event') {
+            return null;
+        }
 
         var title = self.getYAxisTitle(stream);
 
@@ -542,6 +628,11 @@
 
         _.each(datapoints, function (streamDatapoints, i) {
             var stream = streamDatapoints.stream;
+
+            // Event streams do not have y axis.
+            if (stream.tags.visualization.type === 'event') {
+                return;
+            }
 
             var title = self.getYAxisTitle(stream);
 
@@ -656,6 +747,22 @@
                     });
                     firstSeries = firstSeries || s;
                 });
+                _.each(stream._flagTypes, function (flagType, j) {
+                    // There is no way to toggle flags on and off, so we do not respect "hidden" tag.
+                    var s = self.highcharts.addSeries({
+                        'id': 'flag-' + j + '-' + stream.id,
+                        'streamId': stream.id, // Our own option.
+                        'name': stream.tags.title,
+                        'linkedTo': firstSeries ? firstSeries.options.id : undefined, // Has to be undefined and cannot be null.
+                        'type': flagType.type,
+                        'showInLegend': false,
+                        'showRects': false,
+                        'color': 'black', // We force it to black, so that other series automatic color choosing is not interfered with.
+                        'shape': 'squarepin',
+                        'data': streamDatapoints.flag[j]
+                    });
+                    firstSeries = firstSeries || s;
+                });
                 var navigator = self.highcharts.get('navigator');
                 self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
                     'id': 'navigator-y-axis-' + stream.id
@@ -692,6 +799,9 @@
                 }
                 for (var j = 0; j < stream._rangeTypes.length; j++) {
                     self.highcharts.get('range-' + j + '-' + stream.id).setData(streamDatapoints.range[j], false);
+                }
+                for (var j = 0; j < stream._flagTypes.length; j++) {
+                    self.highcharts.get('flag-' + j + '-' + stream.id).setData(streamDatapoints.flag[j], false);
                 }
             }
 
@@ -783,51 +893,66 @@
         }
     };
 
-    // Streams can be declared to be with some other stream and should be displayed together.
-    // This method finds a chart with a given stream, or a chart where at least one of existing
-    // streams is declared to be with the a given stream (or vice-versa).
-    StreamManager.prototype.getChart = function (stream) {
+    // Streams can be declared to be with some other streams and should be displayed together.
+    // This method finds charts where at all of existing streams is declared to be with the given stream.
+    // If a stream is already part of the chart, that chart is not returned.
+    StreamManager.prototype.groupCharts = function (stream) {
         var self = this;
 
-        for (var i = 0; i < self.charts.length; i++) {
-            var chart = self.charts[i];
-
-            for (var chartStreamId in chart.streams) {
-                if (!chart.streams.hasOwnProperty(chartStreamId)) continue;
-
-                var chartStream = chart.streams[chartStreamId];
-
+        return _.filter(self.charts, function (chart) {
+            return _.every(chart.streams, function (chartStream, chartStreamId) {
                 assert.strictEqual(chartStream.id, chartStreamId);
 
-                if (chartStream.id === stream.id) {
-                    return chart;
-                }
+                return chartStream.isWith(stream) || stream.isWith(chartStream);
+            })
+        });
+    };
 
-                if (chartStream.isWith(stream) || stream.isWith(chartStream)) {
-                    return chart;
-                }
-            }
+    // Create charts for streams which are not part of any existing chart.
+    StreamManager.prototype.createChart = function (stream) {
+        var self = this;
+
+        var charts = self.groupCharts(stream);
+
+        if (charts.length) {
+            // Stream should be in a group with an existing chart.
+            return;
         }
 
-        return null;
+        var chart = new Chart(self);
+        self.charts.push(chart);
+        chart.addStream(stream);
+    };
+
+    // Add streams to existing charts.
+    StreamManager.prototype.groupStream = function (stream) {
+        var self = this;
+
+        // groupCharts does not return charts where stream is already part of the chart.
+        var charts = self.groupCharts(stream);
+
+        for (var i = 0; i < charts.length; i++) {
+            charts[i].addStream(stream);
+        }
     };
 
     StreamManager.prototype.streamsLoaded  = function () {
         var self = this;
 
-
+        // First pass is to create charts for groups.
         for (var streamId in self.streams) {
             if (!self.streams.hasOwnProperty(streamId)) continue;
 
             var stream = self.streams[streamId];
-            var chart = self.getChart(stream);
+            self.createChart(stream);
+        }
 
-            if (!chart) {
-                chart = new Chart(self);
-                self.charts.push(chart);
-            }
+        // Second pass is to add charts to all matching groups.
+        for (var streamId in self.streams) {
+            if (!self.streams.hasOwnProperty(streamId)) continue;
 
-            chart.addStream(stream);
+            var stream = self.streams[streamId];
+            self.groupStream(stream);
         }
 
         // Removes existing content (like loading message).
