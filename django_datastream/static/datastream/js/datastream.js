@@ -223,6 +223,19 @@
         }
 
         self._extremes = getExtremeDatapoints(self);
+
+        // Internal cache of already converted datapoints to Highcharts format.
+        // TODO: Should we just leave caching to the browser?
+        //       Is conversion so intensive that we should cache converted datapoints or should we just enable normal
+        //       HTTP caching and then leave to the browser to cache and return same JSON content, which we then just
+        //       just parse again? This would make our codebase/logic easier. And also we would address the issue with
+        //       multiple same requests being done in parallel (like reboot stream) which this caching approach does
+        //       not address (it works only when data is already available on the client, not when you have multiple
+        //       same pending HTTP requests). But does even browser's caching address this?
+        // TODO: We do not have any expiration mechanism.
+        //       Again, this could simply be left to the HTTP caching. On the other side, with current datastream logic
+        //       there should not be any need to expire loaded datapoints because they should not be changing.
+        self._cache = {};
     }
 
     // Caller makes sure that this is bound to the stream. For flag types, parsing function
@@ -296,17 +309,15 @@
     Stream.prototype.computeRange = function (start, end) {
         var self = this;
 
+        assert(_.isNumber(start), start);
+        assert(_.isNumber(end), end);
+
         var range = {
-            'granularity': GRANULARITIES[0]
+            'granularity': GRANULARITIES[0],
+            // In JavaScript timestamps are in milliseconds, but server sides uses them in seconds.
+            'start': start / 1000,
+            'end': end / 1000
         };
-
-        if (!_.isNumber(start) || !_.isNumber(start)) {
-            return range;
-        }
-
-        // In JavaScript timestamps are in milliseconds, but server sides uses them in seconds.
-        range.start = start / 1000;
-        range.end = end / 1000;
 
         var interval = range.end - range.start;
 
@@ -325,8 +336,11 @@
         range.start -= interval * 0.1;
         range.end += interval * 0.1;
 
-        range.start = parseInt(Math.floor(range.start), 10);
-        range.end = parseInt(Math.ceil(range.end), 10);
+        // We round to the granularity intervals so that caching works better. Ranges which are just
+        // slightly different and would still fall into the same granularity intervals and thus return
+        // the same data, are here rounded so that we already internally use those granularity intervals.
+        range.start = parseInt((Math.floor(range.start / granularity.duration) * granularity.duration), 10);
+        range.end = parseInt((Math.ceil(range.end / granularity.duration) * granularity.duration), 10);
 
         return range;
     };
@@ -412,6 +426,39 @@
             'range': range,
             'flag': flag
         };
+    };
+
+    Stream.prototype.loadData = function (start, end, initial, callback) {
+        var self = this;
+
+        var range = self.computeRange(start, end);
+
+        var cacheName = range.granularity.name + '-' + range.start + '-' + range.end;
+
+        // If data was previously loaded, provide it from the cache.
+        if (self._cache[cacheName]) {
+            callback(null, self._cache[cacheName]);
+            return;
+        }
+
+        getJSON(self.resource_uri, {
+            'granularity': range.granularity.name,
+            'limit': MAX_POINTS_LOAD_LIMIT,
+            'start': range.start,
+            'end': range.end,
+            'value_downsamplers': self.valueDownsamplers(initial),
+            'time_downsamplers': self.timeDownsamplers(initial)
+        }, function (data, textStatus, jqXHR) {
+            var datapoints = self.convertDatapoints(data.datapoints);
+
+            // Add a reference to the stream.
+            datapoints.stream = self;
+
+            self._cache[cacheName] = datapoints;
+            callback(null, datapoints);
+        }).fail(function (/* args */) {
+            callback(arguments);
+        });
     };
 
     function Chart(streamManager) {
@@ -566,27 +613,7 @@
         self.highcharts.showLoading("Loading data from server...");
 
         async.map(_.values(self.streams), function (stream, callback) {
-            var range = stream.computeRange(start, end);
-
-            // TODO: Possibly don't do anything if parameters have not changed from the previous data?
-
-            getJSON(stream.resource_uri, {
-                'granularity': range.granularity.name,
-                'limit': MAX_POINTS_LOAD_LIMIT,
-                'start': range.start,
-                'end': range.end,
-                'value_downsamplers': stream.valueDownsamplers(initial),
-                'time_downsamplers': stream.timeDownsamplers(initial)
-            }, function (data, textStatus, jqXHR) {
-                var datapoints = stream.convertDatapoints(data.datapoints);
-
-                // Add a reference to the stream.
-                datapoints.stream = stream;
-
-                callback(null, datapoints);
-            }).fail(function () {
-                callback(arguments);
-            });
+            stream.loadData(start, end, initial, callback);
         }, function (error, results) {
             self.highcharts.hideLoading();
 
