@@ -810,6 +810,7 @@
                         'showRects': false,
                         'color': 'black', // We force it to black, so that other series automatic color choosing is not interfered with.
                         'shape': 'squarepin',
+                        'zIndex': 100, // We want flags to always be over other series.
                         'data': streamDatapoints.flag[j]
                     // Do not redraw.
                     }, false);
