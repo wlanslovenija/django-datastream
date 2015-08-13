@@ -1,5 +1,5 @@
 /**
- * @license Highstock JS v2.1.7 (2015-06-26)
+ * @license @product.name@ JS v@product.version@ (@product.date@)
  * Exporting module
  *
  * (c) 2010-2014 Torstein Honsi
@@ -234,6 +234,13 @@ extend(Chart.prototype, {
 	},
 
 	/**
+	 * Return innerHTML of chart. Used as hook for plugins.
+	 */
+	getChartHTML: function () {
+		return this.container.innerHTML;
+	},
+
+	/**
 	 * Return an SVG representation of the chart
 	 *
 	 * @param additionalOptions {Object} Additional chart options for the generated SVG representation
@@ -332,7 +339,7 @@ extend(Chart.prototype, {
 		});
 
 		// get the SVG from the container's innerHTML
-		svg = chartCopy.container.innerHTML;
+		svg = chartCopy.getChartHTML();
 
 		// free up memory
 		options = null;
@@ -530,7 +537,8 @@ extend(Chart.prototype, {
 							onmouseout: function () {
 								css(this, menuItemStyle);
 							},
-							onclick: function () {
+							onclick: function (e) {
+								e.stopPropagation();
 								hide();
 								if (item.onclick) {
 									item.onclick.apply(chart, arguments);
@@ -613,8 +621,9 @@ extend(Chart.prototype, {
 		delete attr.states;
 
 		if (onclick) {
-			callback = function () {
-				onclick.apply(chart, arguments);
+			callback = function (e) {
+				e.stopPropagation();
+				onclick.call(chart, e);
 			};
 
 		} else if (menuItems) {
