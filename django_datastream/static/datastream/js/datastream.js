@@ -624,6 +624,12 @@
     Chart.prototype.getYAxisTitle = function (stream) {
         var title = [];
 
+        // Event streams do not have units, but labels.
+        if (stream.tags.visualization.type === 'event') {
+            // We do not really display the title, but we prefix it so that it does not match any other title by accident.
+            return 'Event: ' + stream.tags.visualization.label;
+        }
+
         if (stream.tags.unit_description) {
             title.push(stream.tags.unit_description);
         }
@@ -637,11 +643,6 @@
 
     Chart.prototype.getYAxis = function (stream) {
         var self = this;
-
-        // Event streams do not have y axis.
-        if (stream.tags.visualization.type === 'event') {
-            return null;
-        }
 
         var title = self.getYAxisTitle(stream);
 
@@ -657,18 +658,20 @@
         _.each(datapoints, function (streamDatapoints, i) {
             var stream = streamDatapoints.stream;
 
-            // Event streams do not have y axis.
-            if (stream.tags.visualization.type === 'event') {
-                return;
-            }
-
             var title = self.getYAxisTitle(stream);
 
             if (!units[title]) {
                 units[title] = {
                     'min': stream.tags.visualization.minimum,
-                    'max': stream.tags.visualization.maximum
+                    'max': stream.tags.visualization.maximum,
+                    'event': stream.tags.visualization.type === 'event'
                 }
+            }
+            else if (units[title].event) {
+                // Event "units" can be only for streams which are all events.
+                assert.equal(stream.tags.visualization.type, 'event');
+
+                // We do not do any other processinr for event "units".
             }
             else {
                 // We use == and not === to allow both null and undefined.
@@ -696,21 +699,37 @@
         for (var title in units) {
             if (!units.hasOwnProperty(title)) continue;
 
-            var minMax = units[title];
+            var unit = units[title];
 
-            self.highcharts.addAxis({
-                'id': 'y-axis-' + title,
-                'title': {
-                    'text': title
-                },
-                'showEmpty': false,
-                'min': minMax.min,
-                'max': minMax.max,
-                'showRects': true,
-                'showRectsX': -17,
-                'showRectsY': 5
-            // Do not redraw.
-            }, false, false);
+            if (unit.event) {
+                self.highcharts.addAxis({
+                    'id': 'y-axis-' + title,
+                    'showRects': false,
+                    // Do not show the axis itself. We need it only for series for flags to have correct position.
+                    'labels': {
+                        'enabled': false
+                    },
+                    'title': {
+                        'text': null
+                    }
+                // Do not redraw.
+                }, false, false);
+            }
+            else {
+                self.highcharts.addAxis({
+                    'id': 'y-axis-' + title,
+                    'title': {
+                        'text': title
+                    },
+                    'showEmpty': false,
+                    'min': unit.min,
+                    'max': unit.max,
+                    'showRects': true,
+                    'showRectsX': -15,
+                    'showRectsY': 5
+                // Do not redraw.
+                }, false, false);
+            }
         }
     };
 
@@ -785,6 +804,7 @@
                         'streamId': stream.id, // Our own option.
                         'name': stream.tags.title,
                         'linkedTo': firstSeries ? firstSeries.options.id : undefined, // Has to be undefined and cannot be null.
+                        'yAxis': yAxis.options.id,
                         'type': flagType.type,
                         'showInLegend': false,
                         'showRects': false,
@@ -812,7 +832,10 @@
                 }
             });
 
-            // Without the following range selector is not displayed until first zooming. Also redraw.
+            // Without the following range selector is not displayed correctly until first zooming
+            // (it is shown as "invalid date"). Also redraw.
+            // See https://github.com/highslide-software/highcharts.com/issues/4460
+            // TODO: Replace with redraw once fixed?
             self.highcharts.xAxis[0].setExtremes(self.streamManager.extremes.start, self.streamManager.extremes.end, true, false, {'reason': 'initial'});
         });
     };
