@@ -332,9 +332,19 @@
             }
         }
 
-        // We enlarge range for 10 % in each direction
+        // If there are no known datapoints for the stream, we do not continue.
+        // Using == on purpose.
+        if (self._extremes.start == null || self._extremes.end == null) {
+            range.start = null;
+            range.end = null;
+            return range;
+        }
+
+        // We enlarge range for 10 % in each direction, if possible.
         range.start -= interval * 0.1;
+        range.start = Math.max(range.start, self._extremes.start / 1000);
         range.end += interval * 0.1;
+        range.end = Math.min(range.end, self._extremes.end / 1000);
 
         // We round to the granularity intervals so that caching works better. Ranges which are just
         // slightly different and would still fall into the same granularity intervals and thus return
@@ -420,14 +430,22 @@
             return;
         }
 
-        getJSON(self.resource_uri, {
+        var parameters = {
             'granularity': range.granularity.name,
             'limit': MAX_POINTS_LOAD_LIMIT,
-            'start': range.start,
-            'end': range.end,
             'value_downsamplers': self.valueDownsamplers(initial),
             'time_downsamplers': self.timeDownsamplers(initial)
-        }, function (data, textStatus, jqXHR) {
+        };
+
+        // Using != on purpose.
+        if (range.start != null && range.end != null) {
+            _.extend(parameters, {
+                'start': range.start,
+                'end': range.end
+            });
+        }
+
+        getJSON(self.resource_uri, parameters, function (data, textStatus, jqXHR) {
             var datapoints = self.convertDatapoints(data.datapoints);
 
             // Add a reference to the stream.
