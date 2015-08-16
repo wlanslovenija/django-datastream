@@ -348,53 +348,42 @@
     // TODO: We should probably optimize this and not use functions to iterate.
     // TODO: Should we use web workers?
     // For flag types, parsing function is responsible to return an object representing the point from the rawdatapoint value.
-    Stream.prototype.convertDatapoint = function (datapoint) {
+    Stream.prototype.convertDatapoint = function (datapoint, main, range, flag) {
         var self = this;
 
         // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now.
         var t = moment.utc(_.isObject(datapoint.t) ? datapoint.t.m : datapoint.t).valueOf();
 
         if (_.isObject(datapoint.v)) {
-            return {
-                'main': _.map(self._mainTypes, function (mainType, i) {
-                    return [t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v[key]);}));
-                }),
-                'range': _.map(self._rangeTypes, function (rangeType, i) {
-                    return [t].concat(_.map(rangeType.keys, function (key, j) {return rangeType.parse.call(self, datapoint.v[key]);}));
-                }),
-                'flag': _.map(self._flagTypes, function (flagType, i) {
-                    var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
-                    // Using == on purpose.
-                    if (value == null) {
-                        return null;
-                    }
-                    else {
-                        return _.extend({
-                            'x': t
-                        }, value);
-                    }
-                })
-            }
+            _.each(self._mainTypes, function (mainType, i) {
+                main[i].push([t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v[key]);})));
+            });
+            _.each(self._rangeTypes, function (rangeType, i) {
+                range[i].push([t].concat(_.map(rangeType.keys, function (key, j) {return rangeType.parse.call(self, datapoint.v[key]);})));
+            });
+            _.each(self._flagTypes, function (flagType, i) {
+                var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
+                // Using != on purpose.
+                if (value != null) {
+                    flag[i].push(_.extend({
+                        'x': t
+                    }, value));
+                }
+            });
         }
         else {
-            return {
-                'main': _.map(self._mainTypes, function (mainType, i) {
-                    return [t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v);}));
-                }),
-                'range': [],
-                'flag': _.map(self._flagTypes, function (flagType, i) {
-                    var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
-                    // Using == on purpose.
-                    if (value == null) {
-                        return null;
-                    }
-                    else {
-                        return _.extend({
-                            'x': t
-                        }, value);
-                    }
-                })
-            }
+            _.each(self._mainTypes, function (mainType, i) {
+                main[i].push([t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v);})));
+            });
+            _.each(self._flagTypes, function (flagType, i) {
+                var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
+                // Using != on purpose.
+                if (value != null) {
+                    flag[i].push(_.extend({
+                        'x': t
+                    }, value));
+                }
+            });
         }
     };
 
@@ -408,17 +397,7 @@
         var flag = _.map(self._flagTypes, function (flagType, i) {return [];});
 
         for (var i = 0; i < datapoints.length; i++) {
-            var datapoint = self.convertDatapoint(datapoints[i]);
-
-            for (var j = 0; j < datapoint.main.length; j++) {
-                main[j].push(datapoint.main[j]);
-            }
-            for (var j = 0; j < datapoint.range.length; j++) {
-                range[j].push(datapoint.range[j]);
-            }
-            for (var j = 0; j < datapoint.flag.length; j++) {
-                flag[j].push(datapoint.flag[j]);
-            }
+            self.convertDatapoint(datapoints[i], main, range, flag);
         }
 
         return {
