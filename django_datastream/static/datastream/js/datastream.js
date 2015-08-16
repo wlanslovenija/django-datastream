@@ -582,7 +582,7 @@
         else {
             // User changed extremes. Visually the current chart has been redrawn with existing data, but now
             // let's load data for potentially new granularity and range in all charts, including this one.
-            self.streamManager.setViewport(event.min, event.max);
+            self.streamManager.setViewport(event.min, event.max, self);
         }
     };
 
@@ -812,11 +812,10 @@
                 }
             });
 
-            // Without the following range selector is not displayed correctly until first zooming
-            // (it is shown as "invalid date"). Also redraw.
-            // See https://github.com/highslide-software/highcharts.com/issues/4460
-            // TODO: Replace with redraw once fixed?
-            self.highcharts.xAxis[0].setExtremes(self.streamManager.extremes.start, self.streamManager.extremes.end, true, false, {'reason': 'initial'});
+            // Redraw. We set eventArgs so that it is passed to afterSetExtremes. It is similar to what happens if
+            // you call chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'initial'}).
+            self.highcharts.get('x-axis').eventArgs = {'reason': 'initial'};
+            self.highcharts.redraw(false);
         });
     };
 
@@ -848,7 +847,7 @@
             }
 
             // Redraw.
-            self.highcharts.redraw(true, false);
+            self.highcharts.redraw(false);
         });
     };
 
@@ -1030,7 +1029,7 @@
     };
 
     // start and end arguments are in milliseconds.
-    StreamManager.prototype.setViewport = function (start, end) {
+    StreamManager.prototype.setViewport = function (start, end, originStream) {
         var self = this;
 
         // We use == and not === to test for both null and undefined.
@@ -1038,7 +1037,17 @@
             return;
         }
 
+        // Calling setExtremes on origin stream does not always work when start and end is the same as it was just
+        // set (but we want to load new datapoints), so we skip it in the loop below and call renderNewViewport manually.
+        setTimeout(function () {
+            originStream.renderNewViewport(start, end);
+        });
+
         _.each(self.charts, function (chart, i) {
+            if (chart === originStream) {
+                return;
+            }
+
             // Run it through the event loop to render UI updates in chunks and not only at the end of everything.
             setTimeout(function () {
                 chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'syncing'});
