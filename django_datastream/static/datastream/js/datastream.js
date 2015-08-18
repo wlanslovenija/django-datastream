@@ -62,6 +62,55 @@
         });
     }(Highcharts));
 
+    /*
+     * Extend Highcharts so that JSON can be exported for the current viewport.
+     */
+    (function (Highcharts) {
+        var defaultOptions = Highcharts.getOptions();
+
+        _.extend(defaultOptions.lang, {
+            'exportJSON': "Export JSON"
+        });
+
+        defaultOptions.exporting.buttons.contextButton.menuItems.push({
+            'separator': true
+        },
+        {
+            'textKey': 'exportJSON',
+            'onclick': function (e) {
+                this.exportJSON();
+            }
+        });
+
+        _.extend(defaultOptions.navigation.menuItemStyle, {
+            'textDecoration': 'none'
+        });
+
+        $.extend(Highcharts.Chart.prototype, {
+            'exportJSON': function () {
+                var chart = this;
+
+                var datapoints = chart.latestDatapoints || [];
+
+                // We generate an array of all JSON responses for all streams for this chart.
+                var result = [];
+
+                for (var i = 0; i < datapoints.length; i++) {
+                    var streamDatapoints = datapoints[i];
+                    var jqXHR = streamDatapoints.jqXHR;
+                    result.push(jqXHR.responseJSON);
+                }
+
+                // Using HTML5 download attribute and data url to export.
+                var exportLink = document.createElement('a');
+                exportLink.href = 'data:attachment/json,' + encodeURIComponent(JSON.stringify(result));
+                exportLink.target = '_blank';
+                exportLink.download = 'export.json';
+                exportLink.click();
+            }
+        });
+    }(Highcharts));
+
     // The language object is global and it can't be set on each chart initiation. Instead, we have to use
     // Highcharts.setOptions to set it before any chart is initiated.
     Highcharts.setOptions({
@@ -70,6 +119,8 @@
             'thousandsSep': ''
         }
     });
+
+    var REQUEST_QUERY = /\?/;
 
     // TODO: This currently does not depend on how many datapoints are really available, so if granularity is seconds, it assumes that every second will have a datapoint.
     var MAX_POINTS_NUMBER = 300;
@@ -115,21 +166,20 @@
     var ajaxRequests = {};
 
     function getJSON(url, data) {
-        // TODO: Stringification should be canonical.
-        var key = url + '::' + JSON.stringify(data);
+        // We use traditional query params serialization for all our requests.
+        var params = $.param(data, true);
 
-        if (!ajaxRequests[key]) {
-            ajaxRequests[key] = $.ajax({
+        // We append params to the URL ourselves.
+        url += (REQUEST_QUERY.test(url) ? '&' : '?') + params;
+
+        if (!ajaxRequests[url]) {
+            ajaxRequests[url] = $.ajax({
                 'dataType': 'json',
-                'url': url,
-                'data': data,
-                // We don't use global jQuery Ajax setting to not conflict with some other code,
-                // but we make sure we use traditional query params serialization for all our requests.
-                'traditional': true
+                'url': url
             });
         }
 
-        return ajaxRequests[key];
+        return ajaxRequests[url];
     }
 
     function firstDefined(obj /*, args */) {
@@ -439,11 +489,12 @@
             });
         }
 
-        getJSON(self.resource_uri, parameters).done(function (data, textStatus, jqXHR) {
+        var jqXHR = getJSON(self.resource_uri, parameters).done(function (data, textStatus, jqXHR) {
             var datapoints = self.convertDatapoints(data.datapoints);
 
-            // Add a reference to the stream.
+            // Add a reference to the stream and jqXHR object.
             datapoints.stream = self;
+            datapoints.jqXHR = jqXHR;
 
             callback(null, datapoints);
         }).fail(function (/* args */) {
@@ -732,6 +783,9 @@
                 return;
             }
 
+            // Store datapoints array so that we can access it in the JSON exporting operation.
+            self.highcharts.latestDatapoints = datapoints;
+
             self.createYAxis(datapoints);
 
             _.each(datapoints, function (streamDatapoints, i) {
@@ -838,6 +892,9 @@
                 console.error("Error loading data for new viewport", error);
                 return;
             }
+
+            // Store datapoints array so that we can access it in the JSON exporting operation.
+            self.highcharts.latestDatapoints = datapoints;
 
             for (var i = 0; i < datapoints.length; i++) {
                 var streamDatapoints = datapoints[i];
