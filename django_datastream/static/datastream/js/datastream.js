@@ -119,7 +119,6 @@
         var key = url + '::' + JSON.stringify(data);
 
         if (!ajaxRequests[key]) {
-            console.log("new key", key);
             ajaxRequests[key] = $.ajax({
                 'dataType': 'json',
                 'url': url,
