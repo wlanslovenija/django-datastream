@@ -95,26 +95,23 @@
                     'separator': true
                 });
 
-                for (var i = 0; i < datapoints.length; i++) {
-                    var streamDatapoints = datapoints[i];
+                _.each(datapoints, function (streamDatapoints, i) {
                     var stream = streamDatapoints.stream;
                     var jqXHR = streamDatapoints.jqXHR;
 
-                    (function (stream, jqXHR) {
-                        items.push({
-                            'text': stream.tags.title,
-                            'onclick': function (e) {
-                                var url = jqXHR.requestUrl;
-                                url += (REQUEST_QUERY.test(url) ? '&' : '?') + 'format=json';
+                    items.push({
+                        'text': stream.tags.title,
+                        'onclick': function (e) {
+                            var url = jqXHR.requestUrl;
+                            url += (REQUEST_QUERY.test(url) ? '&' : '?') + 'format=json';
 
-                                var link = document.createElement('a');
-                                link.href = url;
-                                link.target = '_blank';
-                                link.click();
-                            }
-                        });
-                    })(stream, jqXHR);
-                }
+                            var link = document.createElement('a');
+                            link.href = url;
+                            link.target = '_blank';
+                            link.click();
+                        }
+                    });
+                });
             }
 
             proceed.call(chart, className, items, x, y, width, height, button);
