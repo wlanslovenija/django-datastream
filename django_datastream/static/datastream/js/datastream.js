@@ -69,16 +69,13 @@
         var defaultOptions = Highcharts.getOptions();
 
         _.extend(defaultOptions.lang, {
-            'exportJSON': "Export JSON"
+            'downloadJSON': "Download JSON data"
         });
 
         defaultOptions.exporting.buttons.contextButton.menuItems.push({
-            'separator': true
-        },
-        {
-            'textKey': 'exportJSON',
+            'textKey': 'downloadJSON',
             'onclick': function (e) {
-                this.exportJSON();
+                this.downloadJSON();
             }
         });
 
@@ -86,8 +83,45 @@
             'textDecoration': 'none'
         });
 
+        Highcharts.wrap(Highcharts.Chart.prototype, 'contextMenu', function (proceed, className, items, x, y, width, height, button) {
+            var chart = this;
+            var datapoints = chart.latestDatapoints;
+
+            if (datapoints) {
+                // So that we do not modify the global array of items.
+                items = _.clone(items);
+
+                items.push({
+                    'separator': true
+                });
+
+                for (var i = 0; i < datapoints.length; i++) {
+                    var streamDatapoints = datapoints[i];
+                    var stream = streamDatapoints.stream;
+                    var jqXHR = streamDatapoints.jqXHR;
+
+                    (function (stream, jqXHR) {
+                        items.push({
+                            'text': stream.tags.title,
+                            'onclick': function (e) {
+                                var url = jqXHR.requestUrl;
+                                url += (REQUEST_QUERY.test(url) ? '&' : '?') + 'format=json';
+
+                                var link = document.createElement('a');
+                                link.href = url;
+                                link.target = '_blank';
+                                link.click();
+                            }
+                        });
+                    })(stream, jqXHR);
+                }
+            }
+
+            proceed.call(chart, className, items, x, y, width, height, button);
+        });
+
         $.extend(Highcharts.Chart.prototype, {
-            'exportJSON': function () {
+            'downloadJSON': function () {
                 var chart = this;
 
                 var datapoints = chart.latestDatapoints || [];
@@ -177,6 +211,9 @@
                 'dataType': 'json',
                 'url': url
             });
+
+            // Store request URL so that it can be accessed in exporting menu.
+            ajaxRequests[url].requestUrl = url;
         }
 
         return ajaxRequests[url];
