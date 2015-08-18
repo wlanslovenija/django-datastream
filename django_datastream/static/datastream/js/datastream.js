@@ -105,16 +105,31 @@
         return second.order - first.order;
     }
 
-    function getJSON(url, data, success) {
-        return $.ajax({
-            'dataType': 'json',
-            'url': url,
-            'data': data,
-            'success': success,
-            // We don't use global jQuery Ajax setting to not conflict with some other code,
-            // but we make sure we use traditional query params serialization for all our requests.
-            'traditional': true
-        });
+    // We cache made Ajax requests. This works even if the same requests are made in parallel.
+    // TODO: Should we just leave caching to the browser?
+    //       Should we just enable normal HTTP caching and then leave to the browser to cache and return same JSON content.
+    //       This would make our codebase/logic easier. But does the browser caching address requests made in parallel?
+    // TODO: We do not have any expiration mechanism.
+    //       Again, this could simply be left to the HTTP caching. On the other side, with current datastream logic
+    //       there should not be any need to expire loaded datapoints because they should not be changing.
+    var ajaxRequests = {};
+
+    function getJSON(url, data) {
+        var key = url + '::' + JSON.stringify(data);
+
+        if (!ajaxRequests[key]) {
+            console.log("new key", key);
+            ajaxRequests[key] = $.ajax({
+                'dataType': 'json',
+                'url': url,
+                'data': data,
+                // We don't use global jQuery Ajax setting to not conflict with some other code,
+                // but we make sure we use traditional query params serialization for all our requests.
+                'traditional': true
+            });
+        }
+
+        return ajaxRequests[key];
     }
 
     function firstDefined(obj /*, args */) {
@@ -131,8 +146,8 @@
         var start = data.earliest_datapoint || null;
         var end = data.latest_datapoint || null;
 
-        // Maybe we gave datapoints stream data.
-        if (data.datapoints && data.datapoints.length > 0) {
+        // If we did not have earliest_datapoint or latest_datapoint, maybe we have datapoints stream data and can reconstruct extremes.
+        if ((start === null || end === null) && data.datapoints && data.datapoints.length > 0) {
             var firstDatapoint = data.datapoints[0];
             var lastDatapoint = data.datapoints[data.datapoints.length - 1];
 
@@ -223,19 +238,6 @@
         }
 
         self._extremes = getExtremeDatapoints(self);
-
-        // Internal cache of already converted datapoints to Highcharts format.
-        // TODO: Should we just leave caching to the browser?
-        //       Is conversion so intensive that we should cache converted datapoints or should we just enable normal
-        //       HTTP caching and then leave to the browser to cache and return same JSON content, which we then just
-        //       just parse again? This would make our codebase/logic easier. And also we would address the issue with
-        //       multiple same requests being done in parallel (like reboot stream) which this caching approach does
-        //       not address (it works only when data is already available on the client, not when you have multiple
-        //       same pending HTTP requests). But does even browser's caching address this?
-        // TODO: We do not have any expiration mechanism.
-        //       Again, this could simply be left to the HTTP caching. On the other side, with current datastream logic
-        //       there should not be any need to expire loaded datapoints because they should not be changing.
-        self._cache = {};
     }
 
     // Caller makes sure that this is bound to the stream. For flag types, parsing function
@@ -295,15 +297,15 @@
     Stream.prototype.valueDownsamplers = function (initial) {
         var self = this;
 
-        return _.union(self.tags.visualization.value_downsamplers, initial ? ['mean'] : [])
+        return _.union(self.tags.visualization.value_downsamplers, initial ? _.intersection(self.value_downsamplers, ['mean']) : [])
     };
 
     Stream.prototype.timeDownsamplers = function (initial) {
         var self = this;
 
         // TODO: Currently really supporting only mean time downsampler, so let's hard-code it for now.
-        //return _.union(self.tags.visualization.time_downsamplers, initial ? ['first', 'last'] : [])
-        return _.union(['mean'], initial ? ['first', 'last'] : [])
+        //return self.tags.visualization.time_downsamplers;
+        return ['mean'];
     };
 
     Stream.prototype.computeRange = function (start, end) {
@@ -422,14 +424,6 @@
 
         var range = self.computeRange(start, end);
 
-        var cacheName = range.granularity.name + '-' + range.start + '-' + range.end;
-
-        // If data was previously loaded, provide it from the cache.
-        if (self._cache[cacheName]) {
-            callback(null, self._cache[cacheName]);
-            return;
-        }
-
         var parameters = {
             'granularity': range.granularity.name,
             'limit': MAX_POINTS_LOAD_LIMIT,
@@ -445,13 +439,12 @@
             });
         }
 
-        getJSON(self.resource_uri, parameters, function (data, textStatus, jqXHR) {
+        getJSON(self.resource_uri, parameters).done(function (data, textStatus, jqXHR) {
             var datapoints = self.convertDatapoints(data.datapoints);
 
             // Add a reference to the stream.
             datapoints.stream = self;
 
-            self._cache[cacheName] = datapoints;
             callback(null, datapoints);
         }).fail(function (/* args */) {
             callback(arguments);
@@ -889,7 +882,7 @@
         async.whilst(function () {
             return !!nextUri;
         }, function (callback) {
-            getJSON(nextUri, nextParams, function (data, textStatus, jqXHR) {
+            getJSON(nextUri, nextParams).done(function (data, textStatus, jqXHR) {
                 _.each(data.objects, function (stream, i) {
                     self.newStream(stream);
                 });
