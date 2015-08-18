@@ -115,6 +115,7 @@
     var ajaxRequests = {};
 
     function getJSON(url, data) {
+        // TODO: Stringification should be canonical.
         var key = url + '::' + JSON.stringify(data);
 
         if (!ajaxRequests[key]) {
