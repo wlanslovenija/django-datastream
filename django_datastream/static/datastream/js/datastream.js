@@ -278,7 +278,7 @@
 
         if (!self.tags.visualization.with) return false;
 
-        // TODO: Should we use _.findWhere?i
+        // TODO: Should we use _.findWhere?
         if (!_.isEqual(_.pick(other.tags, _.keys(self.tags.visualization.with)), self.tags.visualization.with)) return false;
 
         // We can display evets alongside any stream.
