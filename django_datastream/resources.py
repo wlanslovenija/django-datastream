@@ -1,8 +1,9 @@
 import datetime
 
+from django import http
 from django.conf import settings
 
-from tastypie import bundle as tastypie_bundle, exceptions, fields as tastypie_fields, resources
+from tastypie import bundle as tastypie_bundle, exceptions, fields as tastypie_fields, http as tastypie_http, resources
 
 from . import datastream, fields, paginator as datastream_paginator, serializers
 from datastream import api as datastream_api, exceptions as datastream_exceptions
@@ -76,6 +77,54 @@ class BaseResource(resources.Resource):
             return None
         else:
             return value
+
+    def get_list(self, request, **kwargs):
+        response = super(BaseResource, self).get_list(request, **kwargs)
+        return self.add_cors_headers(response)
+
+    def get_detail(self, request, **kwargs):
+        response = super(BaseResource, self).get_detail(request, **kwargs)
+        return self.add_cors_headers(response)
+
+    def get_schema(self, request, **kwargs):
+        response = super(BaseResource, self).get_schema(request, **kwargs)
+        return self.add_cors_headers(response)
+
+    def get_multiple(self, request, **kwargs):
+        response = super(BaseResource, self).get_multiple(request, **kwargs)
+        return self.add_cors_headers(response)
+
+    def error_response(self, request, errors, response_class=None):
+        response = super(BaseResource, self).error_response(request, errors, response_class)
+        return self.add_cors_headers(response)
+
+    # Copy of parent method_check, with call to add_cors_headers.
+    def method_check(self, request, allowed=None):
+        if allowed is None:
+            allowed = []
+
+        request_method = request.method.lower()
+        allows = ','.join([meth.upper() for meth in allowed])
+
+        if request_method == "options":
+            response = http.HttpResponse(allows)
+            response['Allow'] = allows
+            self.add_cors_headers(response)
+            raise exceptions.ImmediateHttpResponse(response=response)
+
+        if not request_method in allowed:
+            response = tastypie_http.HttpMethodNotAllowed(allows)
+            response['Allow'] = allows
+            raise exceptions.ImmediateHttpResponse(response=response)
+
+        return request_method
+
+    def add_cors_headers(self, response):
+        response['Access-Control-Allow-Origin'] = '*'
+        response['Access-Control-Allow-Headers'] = 'Content-Type'
+        response['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response['Access-Control-Max-Age'] = 60 * 60 # seconds, 1 hour
+        return response
 
 
 class StreamResource(BaseResource):
