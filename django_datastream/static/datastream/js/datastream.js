@@ -563,10 +563,11 @@
         // do not want to make range larger that what we have data for. Granularity duration is in seconds, so we have to convert.
         var minRange = Math.min(self.streamManager.highestGranularity.duration * 1000 * MAX_POINTS_NUMBER, self.streamManager.extremes.end - self.streamManager.extremes.start);
 
-        $('<div/>').addClass('chart').appendTo(self.streamManager.element).highcharts('StockChart', {
+        new Highcharts.StockChart({
             'chart': {
                 'zoomType': 'x',
-                'borderRadius': 10
+                'borderRadius': 10,
+                'renderTo': $('<div/>').addClass('chart').appendTo(self.streamManager.element).get(0)
             },
             'credits': {
                 'enabled': false
@@ -659,6 +660,11 @@
             }
             else {
                 self.highcharts = highcharts;
+
+                var $container = $(self.highcharts.container);
+                highcharts.options.exporting.sourceWidth = $container.outerWidth();
+                highcharts.options.exporting.sourceHeight = $container.outerHeight();
+
                 if (callback) callback();
             }
         });
