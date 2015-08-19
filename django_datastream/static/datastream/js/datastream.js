@@ -530,9 +530,9 @@
             datapoints.stream = self;
             datapoints.jqXHR = jqXHR;
 
-            callback(null, datapoints);
+            if (callback) callback(null, datapoints);
         }).fail(function (/* args */) {
-            callback(arguments);
+            if (callback) callback(arguments);
         });
     };
 
@@ -653,8 +653,14 @@
             },
             'series': []
         }, function (highcharts) {
-            self.highcharts = highcharts;
-            if (callback) callback();
+            // When exporting, charts are recreated by Highcharts. We do not do anything here.
+            if (highcharts.options.chart.forExport) {
+                return;
+            }
+            else {
+                self.highcharts = highcharts;
+                if (callback) callback();
+            }
         });
     };
 
@@ -692,7 +698,7 @@
         }, function (error, results) {
             self.highcharts.hideLoading();
 
-            callback(error, results);
+            if (callback) callback(error, results);
         });
     };
 
@@ -813,7 +819,7 @@
 
         self.loadData(self.streamManager.extremes.start, self.streamManager.extremes.end, true, function (error, datapoints) {
             if (error) {
-                callback(error);
+                if (callback) callback(error);
                 return;
             }
 
@@ -915,6 +921,8 @@
             // you call chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'initial'}).
             self.highcharts.get('x-axis').eventArgs = {'reason': 'initial'};
             self.highcharts.redraw(false);
+
+            if (callback) callback();
         });
     };
 
