@@ -112,7 +112,7 @@ class BaseResource(resources.Resource):
             self.add_cors_headers(response)
             raise exceptions.ImmediateHttpResponse(response=response)
 
-        if not request_method in allowed:
+        if request_method not in allowed:
             response = tastypie_http.HttpMethodNotAllowed(allows)
             response['Allow'] = allows
             raise exceptions.ImmediateHttpResponse(response=response)

@@ -37,10 +37,10 @@ class DatastreamSerializer(serializers.Serializer):
         return super(DatastreamSerializer, self).to_simple(data, options)
 
     def to_etree(self, data, options=None, name=None, depth=0):
-         if isinstance(data, datastream.Datapoints):
-             data = [self.to_simple(d, options) for d in data]
+        if isinstance(data, datastream.Datapoints):
+            data = [self.to_simple(d, options) for d in data]
 
-         return super(DatastreamSerializer, self).to_etree(data, options, name, depth)
+        return super(DatastreamSerializer, self).to_etree(data, options, name, depth)
 
     # We want to keep timezone information (Tastypie removes it).
     def format_datetime(self, data):
