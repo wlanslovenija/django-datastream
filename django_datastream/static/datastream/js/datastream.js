@@ -1048,14 +1048,19 @@
     // Streams can be declared to be with some other streams and should be displayed together.
     // This method finds charts where at all of existing streams is declared to be with the given stream.
     // If a stream is already part of the chart, that chart is not returned.
-    StreamManager.prototype.groupCharts = function (stream) {
+    StreamManager.prototype.groupCharts = function (stream, firstPass) {
         var self = this;
 
         return _.filter(self.charts, function (chart) {
             return _.every(chart.streams, function (chartStream, chartStreamId) {
                 assert.strictEqual(chartStream.id, chartStreamId);
 
-                return chartStream.isWith(stream) || stream.isWith(chartStream);
+                if (firstPass) {
+                    return stream.isWith(chartStream);
+                }
+                else {
+                    return chartStream.isWith(stream) || stream.isWith(chartStream);
+                }
             })
         });
     };
@@ -1064,7 +1069,7 @@
     StreamManager.prototype.createChart = function (stream) {
         var self = this;
 
-        var charts = self.groupCharts(stream);
+        var charts = self.groupCharts(stream, true);
 
         if (charts.length) {
             // Stream should be in a group with an existing chart.
@@ -1081,7 +1086,7 @@
         var self = this;
 
         // groupCharts does not return charts where stream is already part of the chart.
-        var charts = self.groupCharts(stream);
+        var charts = self.groupCharts(stream, false);
 
         for (var i = 0; i < charts.length; i++) {
             charts[i].addStream(stream);
