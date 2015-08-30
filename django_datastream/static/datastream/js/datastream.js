@@ -602,6 +602,10 @@
                 'floating': false,
                 'padding': 5
             },
+            'tooltip': {
+                'valueDecimals': 2,
+                'shared': true
+            },
             'rangeSelector': {
                 'buttonTheme': {
                     'width': 50
@@ -865,8 +869,7 @@
                         'fillOpacity': 0.3,
                         'tooltip': {
                             // TODO: Should be based on rangeType.
-                            'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>',
-                            'valueDecimals': 3
+                            'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>'
                         },
                         'visible': !stream.tags.visualization.hidden,
                         'data': streamDatapoints.range[j]
@@ -886,8 +889,7 @@
                         'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
                         'tooltip': {
                             // TODO: Should be based on mainType.
-                            'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>',
-                            'valueDecimals': 3
+                            'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>'
                         },
                         'visible': !stream.tags.visualization.hidden,
                         'data': streamDatapoints.main[j]
