@@ -472,7 +472,7 @@
                 main[i].push([t].concat(_.map(mainType.keys, function (key, j) {return mainType.parse.call(self, datapoint.v);})));
             });
             _.each(self._flagTypes, function (flagType, i) {
-                var value = flagType.parse.call(self, _.pick(datapoint.v, flagType.keys));
+                var value = flagType.parse.call(self, datapoint.v);
                 // Using != on purpose.
                 if (value != null) {
                     flag[i].push(_.extend({
