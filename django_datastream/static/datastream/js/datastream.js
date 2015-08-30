@@ -338,8 +338,8 @@
         }
 
         return {
-            'title': self.tags.visualization.label,
-            'text': self.tags.visualization.message
+            'title': self.tags.label,
+            'text': self.tags.message
         }
     };
 
@@ -726,7 +726,7 @@
         // Event streams do not have units, but labels.
         if (stream.tags.visualization.type === 'event') {
             // We do not really display the title, but we prefix it so that it does not match any other title by accident.
-            return 'Event: ' + stream.tags.visualization.label;
+            return 'Event: ' + stream.tags.label;
         }
 
         if (stream.tags.unit_description) {
