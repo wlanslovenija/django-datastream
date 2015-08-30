@@ -523,7 +523,7 @@
             });
         }
 
-        var jqXHR = getJSON(self.resource_uri, parameters).done(function (data, textStatus, jqXHR) {
+        getJSON(self.resource_uri, parameters).done(function (data, textStatus, jqXHR) {
             var datapoints = self.convertDatapoints(data.datapoints);
 
             // Add a reference to the stream and jqXHR object.
