@@ -2,7 +2,7 @@
 // @compilation_level SIMPLE_OPTIMIZATIONS
 
 /**
- * @license Highstock JS v2.1.7-modified ()
+ * @license Highstock JS v2.1.8-modified ()
  *
  * (c) 2009-2014 Torstein Honsi
  *
@@ -55,7 +55,7 @@ var UNDEFINED,
 	charts = [],
 	chartCount = 0,
 	PRODUCT = 'Highstock',
-	VERSION = '2.1.7-modified',
+	VERSION = '2.1.8-modified',
 
 	// some constants for frequently used strings
 	DIV = 'div',
@@ -443,6 +443,7 @@ dateFormat = function (format, timestamp, capitalize) {
 
 			// Time
 			'H': pad(hours), // Two digits hours in 24h format, 00 through 23
+			'k': hours, // Hours in 24h format, 0 through 23
 			'I': pad((hours % 12) || 12), // Two digits hours in 12h format, 00 through 11
 			'l': (hours % 12) || 12, // Hours in 12h format, 1 through 12
 			'M': pad(date[getMinutes]()), // Two digits minutes, 00 through 59
@@ -1258,7 +1259,7 @@ defaultOptions = {
 				'August', 'September', 'October', 'November', 'December'],
 		shortMonths: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 		weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-		// invalidDate: '', // docs
+		// invalidDate: '',
 		decimalPoint: '.',
 		numericSymbols: ['k', 'M', 'G', 'T', 'P', 'E'], // SI prefixes used in axis labels
 		resetZoom: 'Reset zoom',
@@ -1268,8 +1269,8 @@ defaultOptions = {
 	global: {
 		useUTC: true,
 		//timezoneOffset: 0,
-		canvasToolsURL: 'http://code.highcharts.com/stock/2.1.7-modified/modules/canvas-tools.js',
-		VMLRadialGradientURL: 'http://code.highcharts.com/stock/2.1.7-modified/gfx/vml-radial-gradient.png'
+		canvasToolsURL: 'http://code.highcharts.com/stock/2.1.8-modified/modules/canvas-tools.js',
+		VMLRadialGradientURL: 'http://code.highcharts.com/stock/2.1.8-modified/gfx/vml-radial-gradient.png'
 	},
 	chart: {
 		//animation: true,
@@ -1840,6 +1841,7 @@ SVGElement.prototype = {
 			colorObject,
 			gradName,
 			gradAttr,
+			radAttr,
 			gradients,
 			gradientObject,
 			stops,
@@ -1876,12 +1878,11 @@ SVGElement.prototype = {
 
 			// Correct the radial gradient for the radial reference system
 			if (gradName === 'radialGradient' && radialReference && !defined(gradAttr.gradientUnits)) {
-				gradAttr = merge(gradAttr, {
-					cx: (radialReference[0] - radialReference[2] / 2) + gradAttr.cx * radialReference[2],
-					cy: (radialReference[1] - radialReference[2] / 2) + gradAttr.cy * radialReference[2],
-					r: gradAttr.r * radialReference[2],
-					gradientUnits: 'userSpaceOnUse'
-				});
+				radAttr = gradAttr; // Save the radial attributes for updating
+				gradAttr = merge(gradAttr, 
+					renderer.getRadialAttr(radialReference, radAttr),
+					{ gradientUnits: 'userSpaceOnUse' }
+				);
 			}
 
 			// Build the unique key to detect whether we need to create a new element (#1282)
@@ -1907,6 +1908,7 @@ SVGElement.prototype = {
 					.attr(gradAttr)
 					.add(renderer.defs);
 
+				gradientObject.radAttr = radAttr;
 
 				// The gradient needs to keep a list of stops to be able to destroy them
 				gradientObject.stops = [];
@@ -1933,6 +1935,7 @@ SVGElement.prototype = {
 
 			// Set the reference to the gradient object
 			elem.setAttribute(prop, 'url(' + renderer.url + '#' + id + ')');
+			elem.gradient = key;
 		} 
 	},
 
@@ -1940,9 +1943,9 @@ SVGElement.prototype = {
 	 * Apply a polyfill to the text-stroke CSS property, by copying the text element
 	 * and apply strokes to the copy.
 	 *
+	 * Contrast checks at http://jsfiddle.net/highcharts/43soe9m1/2/
+	 *
 	 * docs: update default, document the polyfill and the limitations on hex colors and pixel values, document contrast pseudo-color
-	 * TODO: 
-	 * - update defaults
 	 */
 	applyTextShadow: function (textShadow) {
 		var elem = this.element,
@@ -2305,7 +2308,21 @@ SVGElement.prototype = {
 	 * [centerX, centerY, diameter] in pixels.
 	 */
 	setRadialReference: function (coordinates) {
+		var existingGradient = this.renderer.gradients[this.element.gradient];
+
 		this.element.radialReference = coordinates;
+		
+		// On redrawing objects with an existing gradient, the gradient needs
+		// to be repositioned (#3801)
+		if (existingGradient && existingGradient.radAttr) {
+			existingGradient.animate(
+				this.renderer.getRadialAttr(
+					coordinates, 
+					existingGradient.radAttr
+				)
+			);
+		}
+
 		return this;
 	},
 
@@ -3108,6 +3125,17 @@ SVGRenderer.prototype = {
 	draw: function () {},
 
 	/**
+	 * Get converted radial gradient attributes
+	 */
+	getRadialAttr: function (radialReference, gradAttr) {
+		return {
+			cx: (radialReference[0] - radialReference[2] / 2) + gradAttr.cx * radialReference[2],
+			cy: (radialReference[1] - radialReference[2] / 2) + gradAttr.cy * radialReference[2],
+			r: gradAttr.r * radialReference[2]
+		};
+	},
+
+	/**
 	 * Parse a simple HTML string into SVG tspans
 	 *
 	 * @param {Object} textNode The parent text SVG node
@@ -3799,7 +3827,24 @@ SVGRenderer.prototype = {
 				// the created element must be assigned to a variable in order to load (#292).
 				imageElement = createElement('img', {
 					onload: function () {
+
+						// Special case for SVGs on IE11, the width is not accessible until the image is 
+						// part of the DOM (#2854).
+						if (this.width === 0) { 
+							css(this, {
+								position: ABSOLUTE,
+								top: '-999em'
+							});
+							document.body.appendChild(this);
+						}
+
+						// Center the image
 						centerImage(obj, symbolSizes[imageSrc] = [this.width, this.height]);
+
+						// Clean up after #2854 workaround.
+						if (this.parentNode) {
+							this.parentNode.removeChild(this);
+						}
 					},
 					src: imageSrc
 				});
@@ -7521,6 +7566,11 @@ Axis.prototype = {
 				tickPositions = this.getLinearTickPositions(this.tickInterval, this.min, this.max);
 			}
 
+			// Too dense ticks, keep only the first and last (#4477)
+			if (tickPositions.length > this.len) {
+				tickPositions = [tickPositions[0], tickPositions.pop()];
+			}
+
 			this.tickPositions = tickPositions;
 
 			// Run the tick positioner callback, that allows modifying auto tick positions.
@@ -7772,15 +7822,17 @@ Axis.prototype = {
 	zoom: function (newMin, newMax) {
 		var dataMin = this.dataMin,
 			dataMax = this.dataMax,
-			options = this.options;
+			options = this.options,
+			min = mathMin(dataMin, pick(options.min, dataMin)),
+			max = mathMax(dataMax, pick(options.max, dataMax));
 
 		// Prevent pinch zooming out of range. Check for defined is for #1946. #1734.
 		if (!this.allowZoomOutside) {
-			if (defined(dataMin) && newMin <= mathMin(dataMin, pick(options.min, dataMin))) {
-				newMin = UNDEFINED;
+			if (defined(dataMin) && newMin <= min) {
+				newMin = min;
 			}
-			if (defined(dataMax) && newMax >= mathMax(dataMax, pick(options.max, dataMax))) {
-				newMax = UNDEFINED;
+			if (defined(dataMax) && newMax >= max) {
+				newMax = max;
 			}
 		}
 
@@ -8046,11 +8098,11 @@ Axis.prototype = {
 			var tick = ticks[pos],
 				label = tick && tick.label;
 			if (label) {
+				label.attr(attr); // This needs to go before the CSS in old IE (#4502)
 				if (css) {
 					label.css(merge(css, label.specCss));
 				}
 				delete label.specCss;
-				label.attr(attr);
 				tick.rotation = attr.rotation;
 			}
 		});
@@ -9639,7 +9691,9 @@ Pointer.prototype = {
 				if (tooltip) { 
 					tooltip.refresh(kdpoint, e);
 				}
-				kdpoint.onMouseOver(e); 
+				if(!hoverSeries || !hoverSeries.directTouch) { // #4448
+					kdpoint.onMouseOver(e); 
+				}
 			}
 			this.prevKDPoint = kdpoint;
 		
@@ -12352,6 +12406,7 @@ Chart.prototype = {
 				if (linkedTo) {
 					linkedTo.linkedSeries.push(series);
 					series.linkedParent = linkedTo;
+					series.visible = pick(series.options.visible, linkedTo.options.visible, series.visible); // #3879
 				}
 			}
 		});
@@ -13285,7 +13340,9 @@ Series.prototype = {
 	 * Get the series' color
 	 */
 	getColor: function () {
-		if (!this.options.colorByPoint) {
+		if (this.options.colorByPoint) {
+			this.options.color = null; // #4359, selected slice got series.color even when colorByPoint was set.
+		} else {
 			this.getCyclic('color', this.options.color || defaultPlotOptions[this.type].color, this.chart.options.colors);
 		}
 	},
@@ -16213,7 +16270,7 @@ var ColumnSeries = extendClass(Series, {
 			groupWidth = categoryWidth - 2 * groupPadding,
 			pointOffsetWidth = groupWidth / columnCount,
 			pointWidth = mathMin(
-				options.maxPointWidth || xAxis.len, // docs: Sample created. Add "See also" to pointWidth. Close UserVoice.
+				options.maxPointWidth || xAxis.len,
 				pick(options.pointWidth, pointOffsetWidth * (1 - 2 * options.pointPadding))
 			),
 			pointPadding = (pointOffsetWidth - pointWidth) / 2,
@@ -16305,7 +16362,7 @@ var ColumnSeries = extendClass(Series, {
 			barX = mathRound(barX) + xCrisp;
 			barW = right - barX;
 
-			fromTop = mathAbs(barY) < 0.5;
+			fromTop = mathAbs(barY) <= 0.5; // #4504
 			bottom = mathMin(mathRound(barY + barH) + yCrisp, 9e4); // #3575
 			barY = mathRound(barY) + yCrisp;
 			barH = bottom - barY;
@@ -16678,11 +16735,6 @@ var PieSeries = {
 	},
 
 	/**
-	 * Pies have one color each point
-	 */
-	getColor: noop,
-
-	/**
 	 * Animate the pies in
 	 */
 	animate: function (init) {
@@ -16924,7 +16976,9 @@ var PieSeries = {
 
 				// draw the slice
 				if (graphic) {
-					graphic.animate(extend(shapeArgs, groupTranslation));				
+					graphic
+						.setRadialReference(series.center)
+						.animate(extend(shapeArgs, groupTranslation));				
 				} else {
 					attr = { 'stroke-linejoin': 'round' };
 					if (!point.visible) {
@@ -17737,7 +17791,7 @@ if (seriesTypes.column) {
 
 
 /**
- * Highstock JS v2.1.7-modified ()
+ * Highstock JS v2.1.8-modified ()
  * Highcharts module to hide overlapping data labels. This module is included by default in Highmaps.
  *
  * (c) 2010-2014 Torstein Honsi
@@ -19355,7 +19409,7 @@ wrap(Series.prototype, 'getSegments', function (proceed) {
  * End ordinal axis logic                                                   *
  *****************************************************************************/
 /**
- * Highstock JS v2.1.7-modified ()
+ * Highstock JS v2.1.8-modified ()
  * Highcharts Broken Axis module
  * 
  * Author: Stephane Vanraes, Torstein Honsi
@@ -19433,10 +19487,6 @@ wrap(Series.prototype, 'getSegments', function (proceed) {
 				info = this.tickPositions.info,
 				newPositions = [],
 				i;
-
-			if (info && info.totalRange >= axis.closestPointRange) { 
-				return;
-			}
 
 			for (i = 0; i < tickPositions.length; i++) {
 				if (!axis.isInAnyBreak(tickPositions[i])) {
@@ -22390,7 +22440,10 @@ RangeSelector.prototype = {
 		}
 
 		each(rangeSelector.buttonOptions, function (rangeOptions, i) {
-			var range = rangeOptions._range,
+			var actualRange = mathRound(baseAxis.max - baseAxis.min),
+				range = rangeOptions._range,
+				type = rangeOptions.type,
+				count = rangeOptions.count || 1,
 				// Disable buttons where the range exceeds what is allowed in the current view
 				isTooGreatRange = range > dataMax - dataMin,
 				// Disable buttons where the range is smaller than the minimum range
@@ -22401,12 +22454,19 @@ RangeSelector.prototype = {
 				// Disable the YTD button if the complete range is within the same year
 				isYTDButNotAvailable = rangeOptions.type === 'ytd' && dateFormat('%Y', dataMin) === dateFormat('%Y', dataMax),
 				// Set a button on export
-				isSelectedForExport = chart.renderer.forExport && i === selected;
+				isSelectedForExport = chart.renderer.forExport && i === selected,
 
+				isSameRange = range === actualRange;
+
+			// Months and years have a variable range so we check the extremes
+			if ((type === 'month' || type === 'year') && (actualRange >= { month: 28, year: 365 }[type] * 24 * 36e5 * count) && 
+					(actualRange <= { month: 31, year: 366 }[type] * 24 * 36e5 * count)) {
+				isSameRange = true;
+			}
 			// The new zoom area happens to match the range for a button - mark it selected.
 			// This happens when scrolling across an ordinal gap. It can be seen in the intraday
 			// demos when selecting 1h and scroll across the night gap.
-			if (isSelectedForExport || (range === mathRound(baseAxis.max - baseAxis.min) && i !== selected)) {
+			if (isSelectedForExport || (isSameRange && i !== selected)) {
 				rangeSelector.setSelected(i);
 				buttons[i].setState(2);
 			
@@ -22653,15 +22713,16 @@ RangeSelector.prototype = {
 			buttonLeft,
 			pos = this.getPosition(),
 			buttonGroup = rangeSelector.group,
-			buttonBBox;
+			buttonBBox,
+			rendered = rangeSelector.rendered;
 
 
 		// create the elements
-		if (!rangeSelector.rendered) {
+		if (!rendered) {
 
 			rangeSelector.group = buttonGroup = renderer.g('range-selector-buttons').add();
 
-			rangeSelector.zoomText = renderer.text(lang.rangeSelectorZoom, pick(buttonPosition.x, plotLeft), pos.buttonTop + 15)
+			rangeSelector.zoomText = renderer.text(lang.rangeSelectorZoom, pick(buttonPosition.x, plotLeft), 15)
 				.css(options.labelStyle)
 				.add(buttonGroup);
 
@@ -22672,7 +22733,7 @@ RangeSelector.prototype = {
 				buttons[i] = renderer.button(
 						rangeOptions.text,
 						buttonLeft,
-						pos.buttonTop,
+						0,
 						function () {
 							rangeSelector.clickButton(i);
 							rangeSelector.isActive = true;
@@ -22717,6 +22778,11 @@ RangeSelector.prototype = {
 				rangeSelector.drawInput('max');	
 			}
 		}
+
+		// Set or update the group position
+		buttonGroup[rendered ? 'animate' : 'attr']({
+			translateY: pos.buttonTop
+		});
 		
 		if (inputEnabled !== false) {
 		
@@ -22813,16 +22879,20 @@ Axis.prototype.minFromRange = function () {
 		timeName = { month: 'Month', year: 'FullYear'}[type],
 		min,
 		max = this.max,
-		date = new Date(max),
 		dataMin,
-		range;
+		range,
+		// Get the true range from a start date
+		getTrueRange = function (base, count) {
+			var date = new Date(base);
+			date['set' + timeName](date['get' + timeName]() + count);
+			return date.getTime() - base;
+		};
 
 	if (typeof rangeOptions === 'number') {
 		min = this.max - rangeOptions;
 		range = rangeOptions;
 	} else {
-		date['set' + timeName](date['get' + timeName]() - rangeOptions.count);
-		min = date.getTime();
+		min = max + getTrueRange(max, -rangeOptions.count);
 	}
 
 	dataMin = pick(this.dataMin, Number.MIN_VALUE);
@@ -22831,6 +22901,9 @@ Axis.prototype.minFromRange = function () {
 	}
 	if (min <= dataMin) {
 		min = dataMin;
+		if (range === undefined) { // #4501
+			range = getTrueRange(min, rangeOptions.count);
+		}
 		this.newMax = mathMin(min + range, this.dataMax);
 	}
 	if (isNaN(max)) {
