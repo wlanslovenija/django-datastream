@@ -358,14 +358,22 @@
     Stream.prototype.isWith = function (other) {
         var self = this;
 
+        // Stream is not "with" itself. This assures that in groupCharts if a stream is
+        // already parts of a chart it is not returned.
         if (self.id === other.id) return false;
 
         if (!self.tags.visualization.with) return false;
 
-        // TODO: Should we use _.findWhere?
-        if (!_.isEqual(_.pick(other.tags, _.keys(self.tags.visualization.with)), self.tags.visualization.with)) return false;
+        for (var withKey in self.tags.visualization.with) {
+            if (!self.tags.visualization.with.hasOwnProperty(withKey)) continue;
 
-        // We can display evets alongside any stream.
+            // All tags from "self.tags.visualization.with" have to exist and be equal in "other.tags".
+            if (!_.isEqual(self.tags.visualization.with[withKey], other.tags[withKey])) {
+                return false;
+            }
+        }
+
+        // We can display events alongside any stream.
         if (self.tags.visualization.type === 'event' || other.tags.visualization.type === 'event') {
             return true;
         }
@@ -1054,28 +1062,52 @@
     // Streams can be declared to be with some other streams and should be displayed together.
     // This method finds charts where at all of existing streams is declared to be with the given stream.
     // If a stream is already part of the chart, that chart is not returned.
-    StreamManager.prototype.groupCharts = function (stream, firstPass) {
+    StreamManager.prototype.groupCharts = function (stream) {
         var self = this;
 
         return _.filter(self.charts, function (chart) {
             return _.every(chart.streams, function (chartStream, chartStreamId) {
                 assert.strictEqual(chartStream.id, chartStreamId);
 
-                if (firstPass) {
-                    return stream.isWith(chartStream);
-                }
-                else {
-                    return chartStream.isWith(stream) || stream.isWith(chartStream);
-                }
+                return chartStream.isWith(stream) || stream.isWith(chartStream);
             })
         });
+    };
+
+    // Is a stream potentially with multiple other streams. Event streams are an example of streams which might be
+    // declared to be displayed with multiple other streams, but other streams are not declared back.
+    StreamManager.prototype.isWithMultiple = function (stream) {
+        var self = this;
+
+        for (var otherStreamId in self.streams) {
+            if (!self.streams.hasOwnProperty(otherStreamId)) continue;
+
+            var other = self.streams[otherStreamId];
+
+            if (stream.id === other.id) continue;
+
+            // If both streams are with each other, then this stream is OK.
+            if (stream.isWith(other) && other.isWith(stream)) continue;
+
+            // But if it is a one-sided "with", then return true. This stream is potentially with multiple other streams.
+            if (stream.isWith(other)) return true;
+        }
+
+        return false;
     };
 
     // Create charts for streams which are not part of any existing chart.
     StreamManager.prototype.createChart = function (stream) {
         var self = this;
 
-        var charts = self.groupCharts(stream, true);
+        // We do not create charts for streams which are with other streams, but they are not back with them. Those
+        // are streams which are possibly with multiple other streams. So we skip them here and do not create
+        // stand-alone charts for them as they will be added later on in groupStream method to existing charts.
+        if (self.isWithMultiple(stream)) {
+            return;
+        }
+
+        var charts = self.groupCharts(stream);
 
         if (charts.length) {
             // Stream should be in a group with an existing chart.
@@ -1092,7 +1124,7 @@
         var self = this;
 
         // groupCharts does not return charts where stream is already part of the chart.
-        var charts = self.groupCharts(stream, false);
+        var charts = self.groupCharts(stream);
 
         for (var i = 0; i < charts.length; i++) {
             charts[i].addStream(stream);
