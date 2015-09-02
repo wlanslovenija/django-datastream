@@ -1039,10 +1039,11 @@
         }
 
         if (self.extremes) {
-            if (streamObject._extremes.start !== null && streamObject._extremes.start < self.extremes.start) {
+            // Using == on purpose.
+            if (self.extremes.start == null || (streamObject._extremes.start != null && streamObject._extremes.start < self.extremes.start)) {
                 self.extremes.start = streamObject._extremes.start;
             }
-            if (streamObject._extremes.end !== null && streamObject._extremes.end > self.extremes.end) {
+            if (self.extremes.end == null || (streamObject._extremes.end != null && streamObject._extremes.end > self.extremes.end)) {
                 self.extremes.end = streamObject._extremes.end;
             }
         }
