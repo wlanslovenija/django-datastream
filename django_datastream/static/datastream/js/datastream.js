@@ -550,7 +550,6 @@
         self.streamManager = streamManager;
 
         self.streams = {};
-        self.yAxis = [];
 
         // It will be populated later on when initialized.
         self.highcharts = null;
@@ -589,7 +588,12 @@
                     'data': []
                 },
                 'yAxis': {
-                    'showRects': false
+                    'showRects': false,
+                    // We put y-axis of navigator, flags and other seris into into different panes. We put the initial
+                    // (unused) navigator y-axis into a separate pane (pane 0) than other later navigator y-axis (pane 1)
+                    // because in some cases putting all in the same pane made main y-axis too large for the data.
+                    // See https://github.com/highslide-software/highcharts.com/issues/4523
+                    'pane': 0
                 }
             },
             'scrollbar': {
@@ -810,7 +814,10 @@
                     },
                     'title': {
                         'text': null
-                    }
+                    },
+                    // We put y-axis of navigator, flags and other seris into into different panes.
+                    // See https://github.com/highslide-software/highcharts.com/issues/4523
+                    'pane': 3
                 // Do not redraw.
                 }, false, false);
             }
@@ -825,7 +832,10 @@
                     'max': unit.max,
                     'showRects': true,
                     'showRectsX': -15,
-                    'showRectsY': 5
+                    'showRectsY': 5,
+                    // We put y-axis of navigator, flags and other seris into into different panes.
+                    // See https://github.com/highslide-software/highcharts.com/issues/4523
+                    'pane': 2
                 // Do not redraw.
                 }, false, false);
             }
@@ -848,6 +858,10 @@
 
             _.each(datapoints, function (streamDatapoints, i) {
                 var stream = streamDatapoints.stream;
+
+                // We have an assumption that y-axis will be used for or range and main type, or for flag type, but not for both.
+                // This is because we are setting y-axis for a flag type into a different pane.
+                assert((stream._rangeTypes.length + stream._mainTypes.length) === 0 || ((stream._rangeTypes.length + stream._mainTypes.length) > 0 && stream._flagTypes.length === 0));
 
                 var yAxis = self.getYAxis(stream);
 
@@ -919,7 +933,12 @@
                 if (streamDatapoints.main[0] || streamDatapoints.range[0]) {
                     var navigator = self.highcharts.get('navigator');
                     self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
-                        'id': 'navigator-y-axis-' + stream.id
+                        'id': 'navigator-y-axis-' + stream.id,
+                        // We put y-axis of navigator, flags and other seris into into different panes. We put these
+                        // navigator y-axis into pane 1 because in some cases putting all in the same pane made main
+                        // y-axis too large for the data.
+                        // See https://github.com/highslide-software/highcharts.com/issues/4523
+                        'pane': 1
                     // Do not redraw.
                     }), false, false);
                     self.highcharts.addSeries(_.extend({}, navigator.options, {
