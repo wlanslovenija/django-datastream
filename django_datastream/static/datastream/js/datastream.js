@@ -860,7 +860,7 @@
                         'id': 'range-' + j + '-' + stream.id,
                         'streamId': stream.id, // Our own option.
                         'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : undefined, // Has to be undefined and cannot be null.
+                        'linkedTo': firstSeries ? firstSeries.options.id : null,
                         'yAxis': yAxis.options.id,
                         'type': rangeType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
@@ -882,7 +882,7 @@
                         'id': 'main-' + j + '-' + stream.id,
                         'streamId': stream.id, // Our own option.
                         'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : undefined, // Has to be undefined and cannot be null.
+                        'linkedTo': firstSeries ? firstSeries.options.id : null,
                         'yAxis': yAxis.options.id,
                         'type': mainType.type,
                         'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
@@ -903,7 +903,7 @@
                         'id': 'flag-' + j + '-' + stream.id,
                         'streamId': stream.id, // Our own option.
                         'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : undefined, // Has to be undefined and cannot be null.
+                        'linkedTo': firstSeries ? firstSeries.options.id : null,
                         'yAxis': yAxis.options.id,
                         'type': flagType.type,
                         'showInLegend': false,
