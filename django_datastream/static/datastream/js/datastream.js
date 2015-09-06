@@ -593,7 +593,9 @@
                     // (unused) navigator y-axis into a separate pane (pane 0) than other later navigator y-axis (pane 1)
                     // because in some cases putting all in the same pane made main y-axis too large for the data.
                     // See https://github.com/highslide-software/highcharts.com/issues/4523
-                    'pane': 0
+                    'pane': 0,
+                    'maxPadding': 0,
+                    'minPadding': 0
                 }
             },
             'scrollbar': {
@@ -827,6 +829,8 @@
                     'title': {
                         'text': title
                     },
+                    'minPadding': 0,
+                    'maxPadding': 0,
                     'showEmpty': false,
                     'min': unit.min,
                     'max': unit.max,
