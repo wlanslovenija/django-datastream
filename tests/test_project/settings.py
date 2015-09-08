@@ -26,14 +26,6 @@ SECRET_KEY = 'sq=uf!nqw=aibl+y1&5pp=)b7pc=c$4hnh$om*_c48r)^t!ob)'
 
 ROOT_URLCONF = 'test_project.urls'
 
-AUTHENTICATION_BACKENDS = (
-    'mongoengine.django.auth.MongoEngineBackend',
-)
-
-AUTH_USER_MODEL = 'mongo_auth.MongoUser'
-
-SESSION_ENGINE = 'mongoengine.django.sessions'
-
 TEST_RUNNER = 'django_datastream.test_runner.DatastreamSuiteRunner'
 
 # Absolute path to the directory static files should be collected to.
@@ -91,7 +83,6 @@ TEMPLATE_DIRS = (
 INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'tastypie',
-    'mongoengine.django.mongo_auth',
     'django_datastream',
     'test_project.test_app',
 )
