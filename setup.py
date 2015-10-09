@@ -39,9 +39,9 @@ if __name__ == '__main__':
             'https://github.com/wlanslovenija/ultrajson/tarball/a8f0f0f1010956b27bf0c2cb5e52d85bb84e273a#egg=ujson-1.34',
         ],
         install_requires=[
-            'Django>=1.5',
-            'datastream>=0.4.9',
-            'django-tastypie>=0.9.16',
+            'Django>=1.7',
+            'datastream>=0.4.10',
+            'django-tastypie>=0.12.1',
             'ujson==1.34',
             'pytz>=2012h',
             'mimeparse>=0.1.3',

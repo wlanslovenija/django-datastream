@@ -1,14 +1,14 @@
 import urlparse
 
 from django.core import urlresolvers
-from django.test import simple
+from django.test import runner
 
 from tastypie import test
 
 from django_datastream import datastream
 
 
-class DatastreamSuiteRunner(simple.DjangoTestSuiteRunner):
+class DatastreamSuiteRunner(runner.DiscoverRunner):
     """
     It is the same as in DjangoTestSuiteRunner, but without relational databases.
     """

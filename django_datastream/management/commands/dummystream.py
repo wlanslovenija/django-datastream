@@ -6,7 +6,12 @@ import re
 import time
 
 from django.core.management import base
-from django.contrib.webdesign import lorem_ipsum
+
+try:
+    # Moved in Django 1.8
+    from django.utils import lorem_ipsum
+except ImportError:
+    from django.contrib.webdesign import lorem_ipsum
 
 import pytz
 
