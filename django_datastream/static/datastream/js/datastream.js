@@ -666,8 +666,8 @@
                     }
                 },
                 // areaspline type is currently used only in the stacking mode, so its stacking mode is enabled for all charts.
-                areaspline: {
-                    stacking: 'normal'
+                'areaspline': {
+                    'stacking': 'normal'
                 }
             },
             'series': []
