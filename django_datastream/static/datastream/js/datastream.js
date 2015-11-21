@@ -935,6 +935,22 @@
                     firstSeries = firstSeries || s;
                 });
                 if (streamDatapoints.main[0] || streamDatapoints.range[0]) {
+                    var navigatorData = streamDatapoints.main[0] || streamDatapoints.range[0];
+
+                    // Prepending and appending null values so that all navigators for all charts have the same time span.
+                    if (navigatorData.length) {
+                        if (navigatorData[0][0] > self.streamManager.extremes.start) {
+                            navigatorData = [[self.streamManager.extremes.start, null]].concat(navigatorData);
+                        }
+
+                        if (navigatorData[navigatorData.length - 1][0] < self.streamManager.extremes.end) {
+                            navigatorData = navigatorData.concat([[self.streamManager.extremes.end, null]]);
+                        }
+                    }
+                    else {
+                        navigatorData = [[self.streamManager.extremes.start, null], [self.streamManager.extremes.end, null]];
+                    }
+
                     var navigator = self.highcharts.get('navigator');
                     self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
                         'id': 'navigator-y-axis-' + stream.id,
@@ -950,7 +966,7 @@
                         'streamId': stream.id, // Our own option.
                         'yAxis': 'navigator-y-axis-' + stream.id,
                         'color': firstSeries.color,
-                        'data': streamDatapoints.main[0] || streamDatapoints.range[0]
+                        'data': navigatorData
                     // Do not redraw.
                     }), false);
                 }
