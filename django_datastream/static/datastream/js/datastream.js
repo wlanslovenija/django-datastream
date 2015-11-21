@@ -249,10 +249,20 @@
             }
         }
 
+        start = start && moment.utc(start).valueOf();
+        if (!_.isFinite(start)) {
+            start = null
+        }
+
+        end = end && moment.utc(end).valueOf();
+        if (!_.isFinite(end)) {
+            start = null
+        }
+
         // start and end values are null, or milliseconds.
         return {
-            'start': start && moment.utc(start).valueOf(),
-            'end': end && moment.utc(end).valueOf()
+            'start': start,
+            'end': end
         }
     }
 
@@ -403,8 +413,8 @@
     Stream.prototype.computeRange = function (start, end) {
         var self = this;
 
-        assert(_.isNumber(start), start);
-        assert(_.isNumber(end), end);
+        assert(_.isFinite(start), start);
+        assert(_.isFinite(end), end);
 
         var range = {
             'granularity': GRANULARITIES[0],
@@ -433,6 +443,9 @@
             range.end = null;
             return range;
         }
+
+        assert(_.isFinite(self._extremes.start), start);
+        assert(_.isFinite(self._extremes.end), end);
 
         // We enlarge range for 10 % in each direction, if possible.
         range.start -= interval * 0.1;
