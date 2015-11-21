@@ -1248,6 +1248,19 @@
             return self;
         }
 
+        var currentTimezoneOffset = Highcharts.getOptions().global.timezoneOffset;
+        if (!_.isUndefined(currentTimezoneOffset) && currentTimezoneOffset !== options.timezoneOffset) {
+            // TODO: Make it not global.
+            //       See: https://highcharts.uservoice.com/forums/55896-highcharts-javascript-api/suggestions/10803462-timezone-specific-to-chart-not-global
+            console.warn("Redefining timezone from '" + currentTimezoneOffset + "' to '" + options.timezoneOffset + "'");
+        }
+
+        Highcharts.setOptions({
+            'global': {
+                'timezoneOffset': options.timezoneOffset
+            }
+        });
+
         self.each(function (i, element) {
             new StreamManager(element, options).start();
         });
@@ -1257,7 +1270,9 @@
 
     $.fn.datastream.defaults = {
         'streamListUri': '/api/v1/stream/',
-        'streamListParams': {}
+        'streamListParams': {},
+        // Positive values are west, negative values are east of UTC, as in the ECMAScript getTimezoneOffset method.
+        'timezoneOffset': 0
     };
 
 })(jQuery);
