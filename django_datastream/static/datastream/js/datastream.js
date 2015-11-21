@@ -157,6 +157,7 @@
     var MAX_POINTS_NUMBER = 300;
     // TODO: How much exactly do we want?
     var MAX_POINTS_LOAD_LIMIT = 1000;
+    var INITIAL_TIMESPAN = 24 * 60 * 60 * 1000; // One day.
 
     // The order of entries is from the lowest to the highest granularity on purpose,
     // so that computing the granularity from a range is easier. Duration is in seconds.
@@ -399,7 +400,13 @@
     Stream.prototype.valueDownsamplers = function (initial) {
         var self = this;
 
-        return _.union(self.tags.visualization.value_downsamplers, initial ? _.intersection(self.value_downsamplers, ['mean']) : [])
+        if (initial) {
+            // Navigator data is always using just mean datapoints.
+            return _.intersection(self.value_downsamplers, ['mean']);
+        }
+        else {
+            return self.tags.visualization.value_downsamplers;
+        }
     };
 
     Stream.prototype.timeDownsamplers = function (initial) {
@@ -654,8 +661,7 @@
                         'type': 'all',
                         'text': "all"
                     }
-                ],
-                'selected': 4 // All.
+                ]
             },
             'xAxis': {
                 'id': 'x-axis',
@@ -737,6 +743,29 @@
 
             if (callback) callback(error, results);
         });
+    };
+
+    // Prepending and appending null values so that all charts have the same time span.
+    Chart.prototype.fullRangeDatapints = function (datapoints) {
+        var self = this;
+
+        var startDatapoint = [self.streamManager.extremes.start, null];
+        var endDatapoint = [self.streamManager.extremes.end, null];
+
+        if (datapoints.length) {
+            if (datapoints[0][0] > self.streamManager.extremes.start) {
+                datapoints = [startDatapoint].concat(datapoints);
+            }
+
+            if (datapoints[datapoints.length - 1][0] < self.streamManager.extremes.end) {
+                datapoints = datapoints.concat([endDatapoint]);
+            }
+        }
+        else {
+            datapoints = [startDatapoint, endDatapoint];
+        }
+
+        return datapoints;
     };
 
     Chart.prototype.getYAxisTitle = function (stream) {
@@ -862,135 +891,130 @@
     Chart.prototype.renderInitialData = function (callback) {
         var self = this;
 
-        self.loadData(self.streamManager.extremes.start, self.streamManager.extremes.end, true, function (error, datapoints) {
+        self.loadData(self.streamManager.extremes.start, self.streamManager.extremes.end, true, function (error, allDatapoints) {
             if (error) {
                 if (callback) callback(error);
                 return;
             }
 
-            // Store datapoints array so that we can access it in the JSON exporting operation.
-            self.highcharts.latestDatapoints = datapoints;
-
-            self.createYAxis(datapoints);
-
-            _.each(datapoints, function (streamDatapoints, i) {
-                var stream = streamDatapoints.stream;
-
-                // We have an assumption that y-axis will be used for or range and main type, or for flag type, but not for both.
-                // This is because we are setting y-axis for a flag type into a different pane.
-                assert((stream._rangeTypes.length + stream._mainTypes.length) === 0 || ((stream._rangeTypes.length + stream._mainTypes.length) > 0 && stream._flagTypes.length === 0));
-
-                var yAxis = self.getYAxis(stream);
-
-                // The first series which was already added. If null, the current series being added is the first one.
-                var firstSeries = null;
-
-                // TODO: We should probably deduplicate code here.
-                _.each(stream._rangeTypes, function (rangeType, j) {
-                    var s = self.highcharts.addSeries({
-                        'id': 'range-' + j + '-' + stream.id,
-                        'streamId': stream.id, // Our own option.
-                        'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : null,
-                        'yAxis': yAxis.options.id,
-                        'type': rangeType.type,
-                        'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
-                        'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
-                        'lineWidth': 0,
-                        'fillOpacity': 0.3,
-                        'tooltip': {
-                            // TODO: Should be based on rangeType.
-                            'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>'
-                        },
-                        'visible': !stream.tags.visualization.hidden,
-                        'data': streamDatapoints.range[j]
-                    // Do not redraw.
-                    }, false);
-                    firstSeries = firstSeries || s;
-                });
-                _.each(stream._mainTypes, function (mainType, j) {
-                    var s = self.highcharts.addSeries({
-                        'id': 'main-' + j + '-' + stream.id,
-                        'streamId': stream.id, // Our own option.
-                        'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : null,
-                        'yAxis': yAxis.options.id,
-                        'type': mainType.type,
-                        'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
-                        'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
-                        'tooltip': {
-                            // TODO: Should be based on mainType.
-                            'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>'
-                        },
-                        'visible': !stream.tags.visualization.hidden,
-                        'data': streamDatapoints.main[j]
-                    // Do not redraw.
-                    }, false);
-                    firstSeries = firstSeries || s;
-                });
-                _.each(stream._flagTypes, function (flagType, j) {
-                    // There is no way to toggle flags on and off, so we do not respect "hidden" tag.
-                    var s = self.highcharts.addSeries({
-                        'id': 'flag-' + j + '-' + stream.id,
-                        'streamId': stream.id, // Our own option.
-                        'name': stream.tags.title,
-                        'linkedTo': firstSeries ? firstSeries.options.id : null,
-                        'yAxis': yAxis.options.id,
-                        'type': flagType.type,
-                        'showInLegend': false,
-                        'showRects': false,
-                        'color': 'black', // We force it to black, so that other series automatic color choosing is not interfered with.
-                        'shape': 'squarepin',
-                        'zIndex': 100, // We want flags to always be over other series.
-                        'data': streamDatapoints.flag[j]
-                    // Do not redraw.
-                    }, false);
-                    firstSeries = firstSeries || s;
-                });
-                if (streamDatapoints.main[0] || streamDatapoints.range[0]) {
-                    var navigatorData = streamDatapoints.main[0] || streamDatapoints.range[0];
-
-                    // Prepending and appending null values so that all navigators for all charts have the same time span.
-                    if (navigatorData.length) {
-                        if (navigatorData[0][0] > self.streamManager.extremes.start) {
-                            navigatorData = [[self.streamManager.extremes.start, null]].concat(navigatorData);
-                        }
-
-                        if (navigatorData[navigatorData.length - 1][0] < self.streamManager.extremes.end) {
-                            navigatorData = navigatorData.concat([[self.streamManager.extremes.end, null]]);
-                        }
-                    }
-                    else {
-                        navigatorData = [[self.streamManager.extremes.start, null], [self.streamManager.extremes.end, null]];
-                    }
-
-                    var navigator = self.highcharts.get('navigator');
-                    self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
-                        'id': 'navigator-y-axis-' + stream.id,
-                        // We put y-axis of navigator, flags and other seris into into different panes. We put these
-                        // navigator y-axis into pane 1 because in some cases putting all in the same pane made main
-                        // y-axis too large for the data.
-                        // See https://github.com/highslide-software/highcharts.com/issues/4523
-                        'pane': 1
-                    // Do not redraw.
-                    }), false, false);
-                    self.highcharts.addSeries(_.extend({}, navigator.options, {
-                        'id': 'navigator-' + stream.id,
-                        'streamId': stream.id, // Our own option.
-                        'yAxis': 'navigator-y-axis-' + stream.id,
-                        'color': firstSeries.color,
-                        'data': navigatorData
-                    // Do not redraw.
-                    }), false);
+            self.loadData(self.streamManager.extremes.end - INITIAL_TIMESPAN, self.streamManager.extremes.end, false, function (error, datapoints) {
+                if (error) {
+                    if (callback) callback(error);
+                    return;
                 }
+
+                // Store datapoints array so that we can access it in the JSON exporting operation.
+                self.highcharts.latestDatapoints = datapoints;
+
+                self.createYAxis(datapoints);
+
+                _.each(datapoints, function (streamDatapoints, i) {
+                    var stream = streamDatapoints.stream;
+
+                    // We have an assumption that y-axis will be used for or range and main type, or for flag type, but not for both.
+                    // This is because we are setting y-axis for a flag type into a different pane.
+                    assert((stream._rangeTypes.length + stream._mainTypes.length) === 0 || ((stream._rangeTypes.length + stream._mainTypes.length) > 0 && stream._flagTypes.length === 0));
+
+                    var yAxis = self.getYAxis(stream);
+
+                    // The first series which was already added. If null, the current series being added is the first one.
+                    var firstSeries = null;
+
+                    // TODO: We should probably deduplicate code here.
+                    _.each(stream._rangeTypes, function (rangeType, j) {
+                        var s = self.highcharts.addSeries({
+                            'id': 'range-' + j + '-' + stream.id,
+                            'streamId': stream.id, // Our own option.
+                            'name': stream.tags.title,
+                            'linkedTo': firstSeries ? firstSeries.options.id : null,
+                            'yAxis': yAxis.options.id,
+                            'type': rangeType.type,
+                            'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
+                            'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
+                            'lineWidth': 0,
+                            'fillOpacity': 0.3,
+                            'tooltip': {
+                                // TODO: Should be based on rangeType.
+                                'pointFormat': '<span style="color:{series.color}">{series.name} min/max</span>: <b>{point.low}</b> - <b>{point.high}</b><br/>'
+                            },
+                            'visible': !stream.tags.visualization.hidden,
+                            'data': streamDatapoints.range[j]
+                            // Do not redraw.
+                        }, false);
+                        firstSeries = firstSeries || s;
+                    });
+                    _.each(stream._mainTypes, function (mainType, j) {
+                        var s = self.highcharts.addSeries({
+                            'id': 'main-' + j + '-' + stream.id,
+                            'streamId': stream.id, // Our own option.
+                            'name': stream.tags.title,
+                            'linkedTo': firstSeries ? firstSeries.options.id : null,
+                            'yAxis': yAxis.options.id,
+                            'type': mainType.type,
+                            'color': firstSeries ? firstSeries.color : null, // To automatically choose a color.
+                            'showRects': firstSeries ? false : true, // We want rect to be shown only for the first series (so that each color is shown only once).
+                            'tooltip': {
+                                // TODO: Should be based on mainType.
+                                'pointFormat': '<span style="color:{series.color}">{series.name} mean</span>: <b>{point.y}</b><br/>'
+                            },
+                            'visible': !stream.tags.visualization.hidden,
+                            'data': streamDatapoints.main[j]
+                            // Do not redraw.
+                        }, false);
+                        firstSeries = firstSeries || s;
+                    });
+                    _.each(stream._flagTypes, function (flagType, j) {
+                        // There is no way to toggle flags on and off, so we do not respect "hidden" tag.
+                        var s = self.highcharts.addSeries({
+                            'id': 'flag-' + j + '-' + stream.id,
+                            'streamId': stream.id, // Our own option.
+                            'name': stream.tags.title,
+                            'linkedTo': firstSeries ? firstSeries.options.id : null,
+                            'yAxis': yAxis.options.id,
+                            'type': flagType.type,
+                            'showInLegend': false,
+                            'showRects': false,
+                            'color': 'black', // We force it to black, so that other series automatic color choosing is not interfered with.
+                            'shape': 'squarepin',
+                            'zIndex': 100, // We want flags to always be over other series.
+                            'data': streamDatapoints.flag[j]
+                            // Do not redraw.
+                        }, false);
+                        firstSeries = firstSeries || s;
+                    });
+                    if (allDatapoints[i] && allDatapoints[i].main && allDatapoints[i].main[0]) {
+                        // Navigator data is always using just mean datapoints.
+                        var navigatorData = self.fullRangeDatapints(allDatapoints[i].main[0]);
+
+                        var navigator = self.highcharts.get('navigator');
+                        self.highcharts.addAxis(_.extend({}, navigator.yAxis.options, {
+                            'id': 'navigator-y-axis-' + stream.id,
+                            // We put y-axis of navigator, flags and other seris into into different panes. We put these
+                            // navigator y-axis into pane 1 because in some cases putting all in the same pane made main
+                            // y-axis too large for the data.
+                            // See https://github.com/highslide-software/highcharts.com/issues/4523
+                            'pane': 1
+                            // Do not redraw.
+                        }), false, false);
+                        self.highcharts.addSeries(_.extend({}, navigator.options, {
+                            'id': 'navigator-' + stream.id,
+                            'streamId': stream.id, // Our own option.
+                            'yAxis': 'navigator-y-axis-' + stream.id,
+                            'color': firstSeries.color,
+                            'data': navigatorData
+                            // Do not redraw.
+                        }), false);
+                    }
+                });
+
+                // Redraw. We set eventArgs so that it is passed to afterSetExtremes. It is similar to what happens if
+                // you call chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'initial'}).
+                var start = Math.max(self.streamManager.extremes.end - INITIAL_TIMESPAN, self.streamManager.extremes.start);
+                var end = self.streamManager.extremes.end;
+                self.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'initial'});
+
+                if (callback) callback();
             });
-
-            // Redraw. We set eventArgs so that it is passed to afterSetExtremes. It is similar to what happens if
-            // you call chart.highcharts.get('x-axis').setExtremes(start, end, true, false, {'reason': 'initial'}).
-            self.highcharts.get('x-axis').eventArgs = {'reason': 'initial'};
-            self.highcharts.redraw(false);
-
-            if (callback) callback();
         });
     };
 
