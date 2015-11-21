@@ -7,10 +7,8 @@
  * License: www.highcharts.com/license
  */
 
-// JSLint options:
-/*global Highcharts, HighchartsAdapter, document, window, Math, setTimeout */
-
-(function (Highcharts) { // encapsulate
+/* eslint indent:0 */
+(function (Highcharts) {
 
 // create shortcuts
 var Chart = Highcharts.Chart,
@@ -262,11 +260,9 @@ extend(Chart.prototype, {
 
 		// IE compatibility hack for generating SVG content that it doesn't really understand
 		if (!doc.createElementNS) {
-			/*jslint unparam: true*//* allow unused parameter ns in function below */
 			doc.createElementNS = function (ns, tagName) {
 				return doc.createElement(tagName);
 			};
-			/*jslint unparam: false*/
 		}
 
 		// create a sandbox where a new chart will be generated
@@ -293,7 +289,8 @@ extend(Chart.prototype, {
 		extend(options.chart, {
 			animation: false,
 			renderTo: sandbox,
-			forExport: !allowHTML,
+			forExport: true,
+			renderer: 'SVGRenderer',
 			width: sourceWidth,
 			height: sourceHeight
 		});
@@ -367,7 +364,7 @@ extend(Chart.prototype, {
 
 		// IE9 beta bugs with innerHTML. Test again with final IE9.
 		svg = svg.replace(/(url\(#highcharts-[0-9]+)&quot;/g, '$1')
-			.replace(/&quot;/g, "'");
+			.replace(/&quot;/g, '\'');
 
 		return svg;
 	},
@@ -428,6 +425,7 @@ extend(Chart.prototype, {
 		}
 
 		chart.isPrinting = true;
+		chart.pointer.reset(null, 0);
 
 		fireEvent(chart, 'beforePrint');
 
@@ -554,7 +552,9 @@ extend(Chart.prototype, {
 								css(this, menuItemStyle);
 							},
 							onclick: function (e) {
-								e.stopPropagation();
+								if (e) { // IE7
+									e.stopPropagation();
+								}
 								hide();
 								if (item.onclick) {
 									item.onclick.apply(chart, arguments);
