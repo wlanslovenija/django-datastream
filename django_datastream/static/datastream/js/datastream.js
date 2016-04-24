@@ -108,7 +108,10 @@
                             var link = document.createElement('a');
                             link.href = url;
                             link.target = '_blank';
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
                             link.click();
+                            document.body.removeChild(link);
                         }
                     });
                 });
@@ -137,7 +140,11 @@
                 exportLink.href = 'data:attachment/json,' + encodeURIComponent(JSON.stringify(result));
                 exportLink.target = '_blank';
                 exportLink.download = 'export.json';
+                exportLink.style.display = 'none';
+                document.body.appendChild(exportLink);
                 exportLink.click();
+                document.body.removeChild(exportLink);
+
             }
         });
     }(Highcharts));
