@@ -904,7 +904,8 @@
                 return;
             }
 
-            self.loadData(self.streamManager.extremes.end - INITIAL_TIMESPAN, self.streamManager.extremes.end, false, function (error, datapoints) {
+            var initialStart = Math.max(self.streamManager.extremes.end - INITIAL_TIMESPAN, self.streamManager.extremes.start);
+            self.loadData(initialStart, self.streamManager.extremes.end, false, function (error, datapoints) {
                 if (error) {
                     if (callback) callback(error);
                     return;
